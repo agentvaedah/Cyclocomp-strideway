@@ -70,5 +70,12 @@ object Migrations {
         }
     }
 
-    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+    val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `activities` ADD COLUMN `maxElevationM` REAL NOT NULL DEFAULT 0")
+            // Default 0 puts every stored ride in the recompute queue exactly once.
+            db.execSQL("ALTER TABLE `activities` ADD COLUMN `statsVersion` INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
 }

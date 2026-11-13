@@ -2,7 +2,6 @@ package id.web.agentvaedah.strideway.data.repo
 
 import id.web.agentvaedah.strideway.core.geo.Polyline
 import id.web.agentvaedah.strideway.core.model.ActivitySummary
-import id.web.agentvaedah.strideway.core.stats.StatActivity
 import id.web.agentvaedah.strideway.core.model.Athlete
 import id.web.agentvaedah.strideway.core.model.LatLon
 import id.web.agentvaedah.strideway.core.model.Sport
@@ -11,6 +10,7 @@ import id.web.agentvaedah.strideway.core.model.TrackPoint
 import id.web.agentvaedah.strideway.core.physio.TrainingLoad
 import id.web.agentvaedah.strideway.core.records.BestEfforts
 import id.web.agentvaedah.strideway.core.records.EffortPoint
+import id.web.agentvaedah.strideway.core.stats.StatActivity
 import id.web.agentvaedah.strideway.core.telemetry.LiveMetrics
 import id.web.agentvaedah.strideway.core.track.ActivityStatsCalculator
 import id.web.agentvaedah.strideway.core.track.TrackStats
@@ -22,12 +22,12 @@ import id.web.agentvaedah.strideway.data.db.BestEffortEntity
 import id.web.agentvaedah.strideway.data.db.RouteSource
 import id.web.agentvaedah.strideway.data.db.TrackPointDao
 import id.web.agentvaedah.strideway.data.db.TrackPointEntity
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import java.time.Instant
 import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 @Singleton
 class ActivityRepository @Inject constructor(
@@ -70,6 +70,7 @@ class ActivityRepository @Inject constructor(
                 movingMs = m.movingMs,
                 distanceM = m.distanceM,
                 elevationGainM = m.elevationGainM,
+                maxElevationM = m.maxElevationM ?: 0.0,
                 calories = m.calories,
                 avgHr = m.avgHeartRate,
                 maxHr = m.maxHeartRate,
@@ -79,6 +80,7 @@ class ActivityRepository @Inject constructor(
                 trimp = TrainingLoad.trimpOrEstimate(minutes, avgHr, athlete),
                 trimpEstimated = avgHr == null,
                 polyline = encodePath(pts.map { LatLon(it.lat, it.lon) }),
+                statsVersion = ActivityStatsCalculator.VERSION,
             ),
         )
         computeEfforts(id, existing.sport, pts)
@@ -129,6 +131,7 @@ class ActivityRepository @Inject constructor(
                 movingMs = s.movingMs,
                 distanceM = s.distanceM,
                 elevationGainM = s.elevationGainM,
+                maxElevationM = s.maxElevationM ?: 0.0,
                 calories = s.calories,
                 avgHr = s.avgHr,
                 maxHr = s.maxHr,
@@ -138,6 +141,7 @@ class ActivityRepository @Inject constructor(
                 trimp = s.trimp,
                 trimpEstimated = s.avgHr == null,
                 polyline = encodePath(points.map { it.latLon }),
+                statsVersion = ActivityStatsCalculator.VERSION,
             ),
         )
         computeEfforts(entity.id, entity.sport, pointDao.forActivity(entity.id))
@@ -156,6 +160,27 @@ class ActivityRepository @Inject constructor(
      * Computes best efforts for activities saved before records existed (or before an algorithm change),
      * a few at a time so a long history does not hold the database. Safe to call repeatedly.
      */
+    /**
+     * Recomputes stored summaries once after a formula change, a few at a time so a long history does not
+     * hold the database. Runs after the UI is up; safe to call repeatedly.
+     */
+    suspend fun backfillStats(athlete: Athlete) {
+        while (true) {
+            val ids = activityDao.needingStats(ActivityStatsCalculator.VERSION, BACKFILL_BATCH)
+            if (ids.isEmpty()) return
+            for (id in ids) {
+                val a = activityDao.get(id) ?: continue
+                val pts = pointDao.forActivity(id)
+                if (pts.size < 2) {
+                    // Imported routes without track points cannot be recomputed; park them at the version.
+                    activityDao.setStatsVersion(id, ActivityStatsCalculator.VERSION)
+                    continue
+                }
+                saveStats(a, pts.map { it.toTrackPoint() }, athlete)
+            }
+        }
+    }
+
     suspend fun backfillEfforts() {
         while (true) {
             val ids = activityDao.needingEfforts(BestEfforts.VERSION, BACKFILL_BATCH)

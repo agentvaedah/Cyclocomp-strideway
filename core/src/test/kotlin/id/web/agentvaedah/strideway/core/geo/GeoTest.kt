@@ -34,19 +34,80 @@ class GeoTest {
 }
 
 class ElevationGainTest {
+    /** Feeds 1 m of road per sample, so a window of 100 m spans 100 samples. */
+    private fun feed(g: ElevationGain, eles: List<Double>, stepM: Double = 1.0, accuracy: Double? = null) {
+        eles.forEachIndexed { i, e -> g.add(i * stepM, e, accuracy) }
+    }
+
     @Test
     fun ignoresNoiseBelowThreshold() {
         val g = ElevationGain(3.0)
-        listOf(100.0, 101.0, 99.5, 101.5, 100.0).forEach(g::add)
+        feed(g, listOf(100.0, 101.0, 99.5, 101.5, 100.0))
         assertEquals(0.0, g.gainM, 0.0)
     }
 
     @Test
+    fun noiseAboveThresholdNoLongerAddsPhantomClimb() {
+        // The old counter booked 8 m per cycle here. The band now books one metre at the very first rise and
+        // then holds still, which is the difference between "noise counted" and "noise ignored".
+        val g = ElevationGain(3.0, windowM = 0.0)
+        feed(g, listOf(100.0, 104.0, 100.0, 104.0, 100.0))
+        assertTrue(g.gainM <= 1.0, "gain was ${g.gainM}")
+    }
+
+    @Test
     fun countsRealClimbAndDescent() {
-        val g = ElevationGain(3.0)
-        listOf(100.0, 104.0, 110.0, 105.0, 100.0).forEach(g::add)
-        assertEquals(10.0, g.gainM, 1e-9)
-        assertEquals(10.0, g.lossM, 1e-9)
+        // windowM = 0 makes the mean the sample itself, isolating the band.
+        val g = ElevationGain(3.0, windowM = 0.0)
+        feed(g, listOf(100.0, 104.0, 110.0, 105.0, 100.0))
+        // The band absorbs one threshold at each turnaround: 100 -> 110 credits 7 m, and back down loses 4 m.
+        assertEquals(7.0, g.gainM, 0.01)
+        assertTrue(g.lossM in 3.5..4.5, "loss was ${g.lossM}")
+    }
+
+    @Test
+    fun aFastOscillationInsideTheWindowAveragesOut() {
+        val g = ElevationGain(3.0, windowM = 100.0)
+        // Alternating ±6 m at 1 m spacing: every 100 m window averages to the same height.
+        feed(g, List(600) { 100.0 + if (it % 2 == 0) 6.0 else -6.0 })
+        assertEquals(0.0, g.gainM, 0.01)
+    }
+
+    @Test
+    fun aSustainedClimbStillCounts() {
+        val g = ElevationGain(3.0, windowM = 100.0)
+        // 300 m of steady 10% road: 30 m of climbing. The trailing mean lags by about half the window,
+        // so a short climb reads a little low; the test pins that ceiling rather than the exact 30.
+        feed(g, List(300) { 100.0 + it * 0.1 })
+        assertTrue(g.gainM in 20.0..30.0, "gain was ${g.gainM}")
+    }
+
+    @Test
+    fun poorVerticalAccuracyIsSkipped() {
+        val g = ElevationGain(3.0, windowM = 0.0)
+        feed(g, listOf(100.0, 130.0, 160.0), accuracy = 60.0)
+        assertEquals(0.0, g.gainM, 0.0)
+        assertNull(g.maxEle)
+    }
+
+    @Test
+    fun tracksHighestAndLowestPoint() {
+        val g = ElevationGain(3.0, windowM = 0.0)
+        feed(g, listOf(100.0, 140.0, 120.0, 90.0))
+        assertEquals(140.0, g.maxEle!!, 1e-9)
+        assertEquals(90.0, g.minEle!!, 1e-9)
+    }
+
+    @Test
+    fun resetDropsTheReferenceSoAPauseIsNotClimb() {
+        val g = ElevationGain(3.0, windowM = 0.0)
+        g.add(0.0, 100.0)
+        g.add(1.0, 101.0)
+        g.reset()
+        // Same road continues, but the rider stopped for an hour at the top: nothing was climbed.
+        g.add(2.0, 160.0)
+        g.add(3.0, 161.0)
+        assertEquals(0.0, g.gainM, 0.01)
     }
 }
 

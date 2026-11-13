@@ -34,6 +34,8 @@ class SessionAccumulator(
     private var speedMps = 0.0
     private var maxSpeedMps = 0.0
     private var gpsAltitude: Double? = null
+    /** Vertical accuracy of the latest GPS fix; null when the platform did not report one. */
+    private var verticalAccuracyM: Double? = null
     private var baroAltitude: Double? = null
     private var baroMs = NEVER
     private var gradePct: Double? = null
@@ -54,7 +56,14 @@ class SessionAccumulator(
 
     private val paused: Boolean get() = manualPaused || autoPause.isPaused
 
-    fun onLocation(timeMs: Long, pos: LatLon, altitudeM: Double?, speedMps: Double?, interpolated: Boolean) {
+    fun onLocation(
+        timeMs: Long,
+        pos: LatLon,
+        altitudeM: Double?,
+        speedMps: Double?,
+        interpolated: Boolean,
+        verticalAccuracyM: Double? = null,
+    ) {
         advanceClock(timeMs)
         val prev = lastPos
         val dt = (timeMs - lastPosMs) / 1000.0
@@ -71,6 +80,8 @@ class SessionAccumulator(
         this.speedMps = speed
         lastInterpolated = interpolated
         if (altitudeM != null && !interpolated) gpsAltitude = altitudeM
+        // Only a real fix carries an accuracy; an interpolated point reuses the last one.
+        if (!interpolated) this.verticalAccuracyM = verticalAccuracyM
 
         val wasPaused = paused
         autoPause.update(speed * 3.6, timeMs)
@@ -79,13 +90,16 @@ class SessionAccumulator(
             distanceM += step
             if (speed > maxSpeedMps) maxSpeedMps = speed
             currentAltitude(timeMs)?.let { ele ->
-                gain.add(ele)
+                gain.add(distanceM, ele, verticalAccuracyM)
                 gradePct = grade.add(distanceM, ele)
             }
         }
         lastPos = pos
         lastPosMs = timeMs
     }
+
+    /** Called on pause: altitude held while stopped is not climbing. */
+    fun resetGainReference() = gain.reset()
 
     fun onBarometricAltitude(altitudeM: Double, timeMs: Long) {
         baroAltitude = altitudeM
@@ -145,6 +159,7 @@ class SessionAccumulator(
             maxSpeedKmh = maxSpeedMps * 3.6,
             altitudeM = currentAltitude(timeMs),
             elevationGainM = gain.gainM,
+            maxElevationM = gain.maxEle,
             gradePercent = gradePct,
             heartRate = hrNow,
             avgHeartRate = if (hrCount > 0) (hrSum / hrCount).toInt() else null,
@@ -160,8 +175,12 @@ class SessionAccumulator(
         )
     }
 
+    /**
+     * Barometer first: its noise is centimetres, where GPS altitude wanders by metres between samples and
+     * inflates climb badly. GPS is the fallback, and it is what anchors the barometer to a real datum.
+     */
     private fun currentAltitude(timeMs: Long): Double? =
-        if (timeMs - baroMs <= SENSOR_STALE_MS) baroAltitude else gpsAltitude
+        if (timeMs - baroMs <= BARO_FRESH_MS) baroAltitude else gpsAltitude
 
     private fun advanceClock(timeMs: Long) {
         val dt = timeMs - clockMs
@@ -181,6 +200,9 @@ class SessionAccumulator(
     private companion object {
         const val MAX_PLAUSIBLE_MPS = 30.0
         const val SENSOR_STALE_MS = 5_000L
+
+        /** The barometer reports about once a second; three missed reports means it is gone. */
+        const val BARO_FRESH_MS = 30_000L
         const val HR_CALORIE_WINDOW_MS = 30_000L
         const val GPS_SILENCE_MS = 3_000L
         const val NEVER = Long.MIN_VALUE / 2

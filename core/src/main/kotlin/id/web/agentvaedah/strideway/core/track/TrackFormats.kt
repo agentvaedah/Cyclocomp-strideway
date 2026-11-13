@@ -35,10 +35,23 @@ object TrackStats {
     fun distanceM(points: List<TrackPoint>): Double =
         points.zipWithNext { a, b -> Geo.distanceM(a.latLon, b.latLon) }.sum()
 
-    fun elevationGainM(points: List<TrackPoint>): Double {
+    /**
+     * Climb over stored points, using the same distance-windowed counter the recorder uses so a recomputed
+     * ride matches what was shown live. Points without altitude are skipped; the distance keeps advancing.
+     */
+    fun elevationGainM(points: List<TrackPoint>): Double = elevation(points).gainM
+
+    /** Highest stored altitude, for "Elevasi maks"; null when no point carries one. */
+    fun maxElevationM(points: List<TrackPoint>): Double? = elevation(points).maxEle
+
+    private fun elevation(points: List<TrackPoint>): ElevationGain {
         val gain = ElevationGain()
-        points.forEach { p -> p.ele?.let(gain::add) }
-        return gain.gainM
+        var d = 0.0
+        points.forEachIndexed { i, p ->
+            if (i > 0) d += Geo.distanceM(points[i - 1].latLon, p.latLon)
+            p.ele?.let { gain.add(d, it) }
+        }
+        return gain
     }
 
     /** Keeps at most [max] points, evenly spaced, always including both ends. */

@@ -1,161 +1,105 @@
-<div align="center">
+# Strideway
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/branding/strideway-lockup-color-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="assets/branding/strideway-lockup-color-light.svg">
-  <img src="assets/branding/strideway-lockup-color-dark.svg" alt="Strideway Brand Lockup" width="480"/>
-</picture>
+Aplikasi Android untuk merekam dan menganalisis ride dan run, dibangun dari `PRD_Strideway_Final.md` (fase 1 sampai 3). Package: `id.web.agentvaedah.strideway`.
 
-<br/>
+Backend multi-tenant (FastAPI, PostGIS, CT106) dan unggah otomatis ke Strava adalah fase 4 dan belum ada di repo ini. Aplikasi bekerja penuh secara offline-first; antarmuka sinkronisasi sudah disiapkan di `data/remote/sync/RemoteSyncApi.kt` dan dalam keadaan nonaktif.
 
-### **The Smart Endurance Companion — Ride & Run**
-*Modern, Offline-First Android Head Unit & Telemetry Tracker with BYOK AI Coach*
+## Status build
 
-[![Android CI](https://github.com/agentvaedah/strideway/actions/workflows/android.yml/badge.svg)](https://github.com/agentvaedah/strideway/actions/workflows/android.yml)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF.svg?logo=kotlin&logoColor=white)](https://kotlinlang.org)
-[![Android Platform](https://img.shields.io/badge/Platform-Android%2014%20%28API%2034%29-3DDC84.svg?logo=android&logoColor=white)](https://developer.android.com)
-[![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose%20%26%20M3-4285F4.svg?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
-[![Version](https://img.shields.io/badge/Release-v0.5.0-FF4F00.svg)]()
-[![Tests](https://img.shields.io/badge/Tests-89%20passed-00C853.svg)]()
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+Kode ini ditulis di laptop tanpa Android SDK dan tanpa akses keluar jaringan, jadi **belum pernah dikompilasi atau dijalankan**. Logika inti sudah dipisah ke modul `:core` (Kotlin murni) beserta unit test, dan nilai acuan test dihitung terpisah dengan Python. Langkah pertama di mesin yang punya Android Studio adalah build dan menjalankan test di bawah, lalu memperbaiki error kompilasi yang mungkin muncul.
 
-<br/>
+## Dapatkan APK tanpa Android Studio (GitHub Actions)
 
-<img src="assets/branding/mockup_v05_showcase.png" alt="Strideway Master Interface Showcase" width="100%"/>
+Repo ini membawa workflow `.github/workflows/android.yml` yang menjalankan unit test dan membuat APK debug setiap kali ada push.
 
-</div>
+1. Ekstrak ZIP project, lalu buat repository kosong di GitHub (jangan centang "Add a README").
+2. Dari folder hasil ekstrak:
+   ```
+   git remote add origin https://github.com/<akun>/strideway.git
+   git push -u origin master
+   ```
+3. Buka tab **Actions** di GitHub, pilih run **Android** terbaru, tunggu sampai hijau (sekitar 10 menit untuk run pertama).
+4. Di bagian **Artifacts**, unduh `strideway-debug-apk`. Isinya ZIP berisi `app-debug.apk`.
+5. Salin `app-debug.apk` ke ponsel, buka, lalu izinkan "Instal dari sumber tidak dikenal" bila diminta.
 
----
+Bila run merah, buka langkah yang gagal, salin log errornya, lalu kirim untuk diperbaiki. Untuk menjalankan ulang tanpa push, pakai tombol **Run workflow**.
 
-## 📖 Tentang Strideway
+## Build
 
-**Strideway** (`id.web.agentvaedah.strideway`) adalah aplikasi Android native yang dibangun dari nol untuk berfungsi sebagai **Komputer Sepeda Tangguh (Dedicated Cycling Head Unit)** dan **Pelacak Olahraga Ketahanan (Endurance Tracker)**. Dirancang khusus dengan prinsip dasar **100% Offline-First**, Strideway mengubah smartphone Android (seperti Nokia 5.3) menjadi head unit stang sepeda profesional: presisi tinggi, tahan getaran ban tekanan tinggi (85–95 PSI), hemat baterai, dan mandiri tanpa ketergantungan koneksi internet maupun cloud pihak ketiga.
+Kebutuhan: Android Studio Ladybug (2024.2) atau lebih baru, JDK 17, Android SDK 35.
 
-Proyek ini menggabungkan telemetry cockpit real-time, navigasi peta 3D offline, integrasi sensor Bluetooth Low Energy (BLE), pustaka latihan daya kayuh (FTP), hingga pelatih cerdas **BYOK AI Coach (Bring Your Own Key)** yang berjalan aman di perangkat.
+1. Buka folder ini di Android Studio. Saat Gradle sync, Studio membuat `gradle-wrapper.jar` dari `gradle/wrapper/gradle-wrapper.properties` (Gradle 8.11.1). Untuk command line tanpa Studio, jalankan sekali `gradle wrapper --gradle-version 8.11.1`.
+2. Unit test modul inti:
+   ```
+   ./gradlew :core:test
+   ```
+3. APK debug dan lint:
+   ```
+   ./gradlew :app:assembleDebug :app:lint
+   ```
+4. Pasang ke ponsel: `./gradlew :app:installDebug`, atau ambil `app/build/outputs/apk/debug/app-debug.apk`.
 
----
-
-## 🎨 Identitas & Filosofi Brand
-
-<div align="center">
-
-| App Icon (Adaptive Octagon) | Wordmark (Track Accent) |
-|:---:|:---:|
-| <img src="assets/branding/strideway-icon-color-dark.svg" width="130" alt="Strideway Octagonal Icon"/> | <img src="assets/branding/strideway-wordmark-color-dark.svg" width="340" alt="Strideway Wordmark"/> |
-
-</div>
-
-Brand Strideway dibangun dengan identitas visual yang tegas, fungsional, dan sarat makna olahraga ketahanan:
-
-* **Etimologi Nama:** 
-  * **Stride** *(Langkah)* mewakili dinamika, ritme, dan langkah kaki pelari.
-  * **Way** *(Jalan / Rute)* mewakili jalur aspal, tanjakan, dan lintasan yang diarungi pesepeda.
-* **Segi Delapan Bersudut 45° (Octagonal Tyre Ring):** Lingkaran luar ikon merepresentasikan ban sepeda kokoh yang berputar. Dibuat dengan sudut potong tegas tanpa kurva lembut untuk mencerminkan ketangguhan mekanikal.
-* **Huruf S di Poros Roda:** Inisial *S* terletak tepat di pusat sumbu layaknya *hub* atau as roda, berlekuk tajam menyerupai kelokan jalan menanjak (*switchback* rute pegunungan).
-* **Kemiringan Aerodinamis 12°:** Seluruh elemen logo, ikon, dan tipografi dimiringkan 12° ke depan (*slanted forward*) untuk menyimbolkan akselerasi, momentum, dan kecepatan.
-* **Warna Signal Orange (`#FF4F00`):** Terinspirasi dari rompi keselamatan *high-visibility* pesepeda jalan raya. Warna ini mencolok di bawah terik matahari, kontras di atas peta gelap, dan memancarkan energi denyut jantung tinggi.
-* **Warna Ink Black (`#0A0A0B`) & Clean White (`#FFFFFF`):** Memberikan kontras rasio tinggi (WCAG AAA) sehingga metrik di layar tetap terbaca jelas dalam sekali lirik saat melaju kencang.
-
----
-
-## 🚀 Fitur Unggulan (v0.5.0)
-
-### 🗺️ 1. Peta Navigasi & Pratinjau 3D (*New in v0.5.0*)
-* **3D Route Flyover Camera:** Fitur simulasi rute sebelum gowes dimulai. Kamera menyusuri jalur GPX secara otomatis dengan kemiringan (*tilt*) 60°, kendali rotasi bebas, serta akselerasi putar 2× hingga 4× lengkap dengan banner belokan aktif.
-* **Turn-by-Turn NavBanner:** Panduan arah belokan dinamis di kokpit, penghitung mundur jarak belokan (*countdown* meter presisi), nama jalan, dan peringatan instan saat keluar rute (*off-route alert*).
-* **MapLibre Native Offline Engine:** Render peta vektor luring (*offline vector tiles*) yang halus, hemat RAM, dan mendukung mode *Heading-Up* mengikuti kompas sepeda.
-* **Cue Sheet Lengkap:** Akses daftar lengkap rute belokan navigasi turn-by-turn langsung dari layar peta sebelum merekam.
-
-### 🚴‍♂️ 2. Cockpit Telemetri Real-Time
-* **BLE Multi-Sensor Hub:** Auto-connect instan via Bluetooth Low Energy GATT standar untuk:
-  * **Heart Rate Broadcast (`0x180D`):** Huawei Band 11 Pro, Garmin HRM, Magene, Polar, atau chest strap.
-  * **Cadence & Speed Sensor (`0x1816`):** Sensor crank & wheel hub (XOSS, Magene S3+, dsb.).
-* **Kalkulasi Kalori Presisi (Keytel 2005):** Algoritma pembakaran kalori berbasis denyut jantung aktual yang disesuaikan dengan bobot tubuh dinamis atlet (90 kg).
-* **IMU Dead Reckoning & Auto-Pause:** Mengombinasikan raw GPS polling (500ms) dengan akselerometer internal ponsel saat melewati flyover, terowongan, atau area *GPS shadow*.
-
-### 📱 3. Berbagi Aktivitas & Catatan Rekor (*New in v0.5.0*)
-* **10 Template Kartu Media Sosial:** Ekspor ringkasan gowes langsung dari layar aplikasi ke media sosial dengan latar belakang peta satelit/topografi asli, grafik elevasi, split kecepatan, dan zona denyut jantung.
-* **Mini Peta Asli di Kartu Riwayat:** Layar Home dan Profil menampilkan thumbnail snapshot peta rute sesungguhnya (*live map raster snapshot*), bukan sekadar garis vektor hampa.
-* **Personal Records (PR) ala Strava:** Pelacakan otomatis pencapaian terbaik (*Best Efforts*) untuk kategori 1 km, 5 km, 10 km, hingga 40 km lengkap dengan lencana medali dan selisih waktu rekor lama.
-
-### 🤖 4. BYOK AI Coach (Bring Your Own Key)
-* **Pelatih AI Pribadi di Saku:** Analisis cerdas sesi latihan pasca-gowes, deteksi kelelahan neuromuskular (misal: analisis kram otot di KM 28), saran hidrasi elektrolit, dan rekomendasi hari istirahat berdasarkan data tidur smartwatch.
-* **Multi-Provider Dukungan:** OpenAI (GPT-4o), Google Gemini, Anthropic Claude, Groq, serta Local LLM Gateway pribadi ([9Router](https://github.com/decolua/9router) / Ollama).
-* **Hardware-Backed Security:** Kunci API pengguna disimpan secara aman di dalam **Android Keystore**, tidak pernah diunggah ke server mana pun.
-
-### 🔧 5. Garasi & Pelacak Jarak Tempuh Komponen
-* **Garage Gear Mileage:** Pantau masa pakai rantai, ban luar 700x28c, kampas rem sepeda balap (Polygon Strattos S2), atau sol sepatu lari agar pergantian part terjadwal sebelum terjadi kerusakan mekanis di jalan.
-
----
-
-## 📱 Tampilan Antarmuka (Cockpit & Showcase)
-
-<div align="center">
-
-| Head Unit Cockpit (Nokia 5.3) | Strava-Style Analytics & 3D Route |
-|:---:|:---:|
-| <img src="assets/branding/mockup_v05_cockpit.png" width="370" alt="Head Unit Cockpit View"/> | <img src="assets/branding/mockup_v05_showcase.png" width="370" alt="Analytics and 3D Route View"/> |
-
-</div>
-
----
-
-## 🏗️ Arsitektur Sistem & Spesifikasi Teknis
-
-Aplikasi dibangun menggunakan pola arsitektur modern Android (Clean Architecture & MVI/MVVM):
+## Struktur
 
 ```
-strideway/
-├── app/                  # Android Application Module (Jetpack Compose UI & Services)
-│   ├── src/main/java/id/web/agentvaedah/strideway/
-│   │   ├── ble/          # BLE GATT Client (Heart Rate & Cadence Collectors)
-│   │   ├── location/     # Fused GPS Provider & Dead Reckoning Engine
-│   │   ├── service/      # Foreground Recording Service (Wakelock & Notification)
-│   │   ├── data/         # Room Database, DataStore, & Android Keystore BYOK
-│   │   └── ui/           # Jetpack Compose Screens (Home, Maps, Record, Coach, You)
-│   └── src/main/res/     # Resources, Vector Drawables, & Color Tokens
-├── core/                 # Pure Kotlin/JVM Domain & Calculation Engine
-│   ├── src/main/kotlin/  # Keytel 2005 Formula, GPX Parser, FTP Power Zones
-│   └── src/test/kotlin/  # 89 Comprehensive Unit Tests (100% Passing)
-├── assets/               # Branding Logos, Mockups, Motion Splash Assets
-└── tools/                # Logo Generator & Automation Scripts
+core/   Kotlin/JVM murni, diuji dengan JUnit 5
+  physio/     kalori Keytel 2005, zona HR (Karvonen) dan power Coggan, TRIMP + fitness/fatigue/form, estimasi watt
+  geo/        haversine, bearing, gain elevasi dengan histeresis, gradien, polyline, tile math
+  telemetry/  auto-pause 2,5 km/j > 3 s, dead reckoning, akumulator sesi
+  sensor/     parser GATT HR / CSC / Cycling Power, cadence dan kecepatan roda
+  track/      parser dan penulis GPX, TCX; decoder FIT; statistik aktivitas
+  terrain/    decode DEM Terrarium, slope/aspect Horn, palet slope, avalanche, aspect, hillshade
+  route/      rute (AI loop, intent), RouteFollower dan Navigator: manuver BRouter atau dari geometri, pengumuman 200 m dan saat belok, tiba; RouteFlyover (pratinjau 3D) dan CueSheet (daftar belokan)
+  share/      ShareLayout: tata letak 10 template bagikan tanpa tumpang tindih
+  training/   16 sesi terstruktur per level, WorkoutRunner (target watt, kepatuhan), tes FTP, rencana Base/Build/Peak/Taper
+  coach/      konteks AI Coach dan VoiceCues (kalimat voice over)
+  stats/      progres 7H-1T per metrik, weekly snapshot, streak, ringkasan zona HR
+  records/    best effort (5-40 km ride, 1 km-half marathon run) dan rekor pribadi
+  history/    filter riwayat (sport, tanggal, nama) dan grup per bulan
+  heatmap/    heatmap pribadi dari titik jalur
+  gear/       komponen sepeda, interval servis, status keausan
+  fuel/       rencana cairan/karbohidrat dan jadwal pengingat minum/makan
+  weather/    kode cuaca WMO dan saran latihan
+  privacy/ challenge/ (tantangan opt-in dan penghargaan)
+app/    Android: Compose Material 3, Hilt, Room, DataStore, Ktor, MapLibre
+  data/       Room, DataStore, Keystore, BLE hub, GPS, sensor gerak, file I/O, klien LLM dan routing
+  service/    RecordingController (logika sesi) dan RecordingService (foreground)
+  ui/         home, maps, record, training, coach, you, activity, weather
 ```
 
-* **Bahasa Pemrograman:** Kotlin 2.0.21
-* **Toolkit UI:** Jetpack Compose & Material Design 3
-* **Arsitektur Dependency Injection:** Dagger Hilt 2.51.1
-* **Penyimpanan Data:** Android Room 2.6.1 (SQLite) dengan migrasi otomatis
-* **Mesin Pemetaan:** MapLibre Native Compose SDK v11
-* **Target Platform:** Android 14 (API 34) — Kompatibel ke bawah hingga Android 8.0 (API 26)
-* **Kesiapan Multiplatform:** Modul `:core` sepenuhnya independen dari Android Framework, siap untuk porting ke Kotlin Multiplatform (KMP).
+## Fitur per tab
 
----
+- **Home**: form/fitness/fatigue 42 hari; carousel Snapshot minggu ini, Progres, Sepeda (komponen paling aus dan servis berikutnya) (rentang 7H/1B/3B/6B/YTD/1T untuk jarak, elevasi, waktu, jumlah aktivitas; grafik bisa digeser), Kalender, Analisis HR (waktu per zona), Streak; tantangan bulanan yang diikuti secara sukarela dengan penghargaan saat tercapai; feed aktivitas. Detail aktivitas: peta, grafik elevasi/HR/kecepatan, ganti nama, hapus, ekspor GPX/TCX.
+- **Peta**: pilih sport di kiri atas, cari lokasi (Nominatim) lalu simpan atau buat rute ke sana; Rencana rute meminta hingga 3 alternatif BRouter yang bisa diurutkan menurut jarak, tanjakan, atau porsi aspal; gambar rute sendiri dengan ketuk titik (mengikuti jalan, bisa undo); tombol lapisan (Standar, Satelit, Hybrid, Topo; heatmap pribadi; tempat menarik; jalur sepeda CyclOSM; medan), 3D/2D, dan lokasi sekarang. MapLibre dengan Standar (OpenFreeMap), OSM, Satelit dan Hybrid (Esri), Topo (OpenTopoMap), serta Mapbox Streets/Outdoors/Satelit memakai token Mapbox milik pengguna. Lencana cuaca dan kompas di peta. Lapisan relief, kemiringan, lereng >30°, dan arah lereng dari DEM AWS Terrarium. Impor `.gpx`, `.tcx`, `.fit`; rute tersimpan; AI Route. Setelah alternatif rute dipilih, panel rencana mengecil jadi strip sekitar 10% layar (ganti alternatif dengan panah, ketuk untuk membesar) sehingga peta tetap bisa digeser. Garis rekaman memakai gradien Signal ke kuning dengan glow dan penanda start/finish; rute rencana garis putus dengan panah arah.
+- **Cuaca**: Open-Meteo tanpa API key: kondisi sekarang, angin, UV, tekanan, 24 jam, 7 hari, dan saran latihan.
+- **Rekam**: layar standby seperti Strava (peta, ikon sport, tombol Mulai, Tambah rute). Saat merekam ada tampilan maksimal (timer 00:00:00, kecepatan rata-rata, jarak, naik, elevasi sekarang, HR) dan minimal (peta 75%, baris status HR/jeda/perbesar, waktu, rata-rata, jarak, kecepatan maks, cadence, gradien); panah posisi dan peta mengikuti arah gerak, kompas menunjuk utara sejati; tombol 3D, lokasi sekarang, preview rute, ganti rute, peringatan rute. Saat Mulai terdengar "Sudah siap gowes? Gas, hati-hati di jalan!", saat Stop "Rekaman berhenti. Selamat istirahat." Navigasi belokan demi belokan: banner atas berisi panah manuver, jarak, sisa km dan perkiraan tiba; suara "Dalam 200 meter, belok kanan" lalu "Belok kanan sekarang". Keluar rute >50 m selama 5 detik memicu getar dan suara; setelah 10 detik rute dihitung ulang dari posisi sekarang ke tujuan. Bila sesi latihan dipilih, strip latihan menunjukkan target watt, kepatuhan (Naikkan/Pas/Turunkan), dan sisa waktu interval, dengan suara di tiap pergantian interval. Voice over (TTS bawaan, OpenAI, atau ElevenLabs) untuk split per km, jeda/lanjut, zona HR, rute, dan pengingat minum/makan. Volume Atas jeda/lanjut, Volume Bawah ganti tampilan.
+- **Latihan**: tab Rencana (wizard tujuan, tanggal event, hari latihan, level Pemula sampai Elite; rencana dibuat AI bila ada API key, kalau tidak oleh aturan periodisasi) dan Sesi (16 sesi dari recovery sampai race simulation, durasi menyesuaikan level). "Kayuh sesi ini" memasang sesi ke layar Rekam. Setelah tes FTP 20 menit atau ramp selesai, aplikasi menawarkan FTP baru dan memperbarui zona. Tombol chat membuka AI Coach (OpenAI, Gemini, Groq, Anthropic, atau Ollama/9Router dengan API key milik pengguna, terenkripsi Android Keystore).
+- **Aktivitas**: rekor pribadi ala Strava (lencana PR di kartu dan detail, pengguna baru langsung dapat PR). Detail punya menu kanan atas: tambah foto, edit (judul, sport, deskripsi), potong, visibilitas peta, simpan sebagai rute, hitung ulang, hapus. "Bagikan dengan foto" (atau ketuk foto aktivitas) membuat gambar Feed 4:5 atau Story 9:16 dengan 10 template (antara lain Peta penuh, Foto + peta, Elevasi, Rekor; Tanpa foto berupa PNG transparan), template berpeta memakai peta asli berisi Distance, Elev Gain, Time, Avg Power (bila ada), dan Speed; bagikan ke aplikasi lain atau simpan ke `Pictures/Strideway`. Ketuk peta untuk animasi rute; geser timeline untuk melihat kecepatan, HR, dan elevasi di setiap saat.
+- **You**: profil (nama, jenis sepeda), tab Progress (grafik, streak, total, rekor pribadi, penghargaan) dan Aktivitas (cari, filter sport dan tanggal, grup per bulan dengan total). Garasi sepeda: pilih dari 15 komponen (shifter sampai tuas rem), km dihitung dari ride setelah tanggal pasang, tandai servis atau ganti dengan riwayat. Ikon gear membuka Pengaturan: profil dan zona, Privacy Zone, tema Terang/Gelap/Sistem, peta dan token Mapbox, suara, minum & energi (dengan saran AI), perangkat dan sensor ponsel, API key, backup/restore.
 
-## 🛠️ Panduan Kompilasi & Build
+## Izin yang diminta
 
-### Persyaratan Lingkungan
-* **JDK:** OpenJDK 17 LTS
-* **Android SDK:** Platform API 34 (`build-tools;34.0.0`)
-* **Gradle:** Wrapper v8.11.1
+| Izin | Untuk |
+|---|---|
+| Lokasi akurat | merekam jalur |
+| Notifikasi (Android 13+) | notifikasi tetap selama merekam |
+| Perangkat sekitar / Bluetooth | sensor HR, cadence, power, suhu/tekanan |
+| Getar | peringatan keluar rute |
+| Foreground service lokasi dan perangkat terhubung | merekam saat layar mati |
 
-### Perintah Build Terminal (CLI)
-```bash
-# 1. Jalankan pengujian unit test modul inti (:core)
-./gradlew :core:test
+## Catatan dan batasan
 
-# 2. Kompilasi aplikasi ke format APK Debug
-./gradlew :app:assembleDebug
-
-# 3. Lokasi berkas instalasi APK yang dihasilkan:
-# app/build/outputs/apk/debug/app-debug.apk
-```
-
-### Otomasi CI/CD Cloud (GitHub Actions)
-Setiap *commit* atau *pull request* yang didorong ke branch `main` akan memicu pipeline GitHub Actions secara otomatis untuk memvalidasi kode, menjalankan 89 unit test, serta merilis artefak APK yang dapat diunduh di tab [**Actions**](https://github.com/agentvaedah/strideway/actions).
-
----
-
-## 📄 Lisensi
-
-Proyek ini dilisensikan di bawah lisensi terbuka [MIT License](LICENSE).  
-Dikelola dan dikembangkan oleh **Agent Vaedah** ([@agentvaedah](https://github.com/agentvaedah)).
+- **Database versi 4**: migrasi 3 ke 4 menambah kolom elevasi maks dan penanda versi perhitungan statistik, sehingga aktivitas lama dihitung ulang sekali dengan rumus elevasi baru. Riwayat migrasi: migrasi 1 ke 2 menambah kolom deskripsi dan visibilitas aktivitas serta tabel best effort, foto, lokasi tersimpan, dan komponen sepeda; migrasi 2 ke 3 menambah tabel manuver rute, rencana latihan, dan sesi terjadwal. Buat backup sebelum memasang versi baru di atas versi lama. Foto aktivitas, rencana latihan, dan gambar bagikan tidak ikut backup JSON.
+- **Nama jalan** belum muncul di navigasi karena respons brouter.de tidak menyertakan tag `name`. Rute impor atau gambar tangan memakai belokan yang dideteksi dari geometri.
+- **Bagikan gambar** memakai FileProvider (`${applicationId}.share`) dari cache aplikasi; simpan ke galeri lewat MediaStore tanpa izin penyimpanan di Android 10+.
+- **Bento**: grup statistik (Home, Progress, detail aktivitas, Cuaca, Garasi) memakai grid 2 kolom dengan satu tile utama yang membentang.
+- **Heatmap Global, Mingguan, dan Malam** butuh data banyak pengguna dari server (fase 4), jadi baru Pribadi yang aktif.
+- **Merek**: warna Signal `#FF4F00` dan Ink `#0A0A0B` serta logo dari `assets/branding/` (aturan di `BRAND.md`). Judul dan angka besar memakai Strideway Sans (`tools/font/build_font.py`); teks lain Outfit (SIL OFL 1.1, lisensi di `assets/licenses/Outfit-OFL.txt`). Di mode terang, teks oranye memakai Signal yang lebih gelap `#C23B00` karena Signal di atas putih hanya 3,3:1.
+- **Splash 5 detik** (`ui/splash/`, waktu di `core/splash/SplashTimeline.kt`) tampil setiap aplikasi dibuka setelah ditutup (tidak saat kembali dari latar belakang); ketuk layar untuk langsung ke Home. Splash dilewati saat sesi rekam aktif, setelah rotasi, dan bila animasi sistem dimatikan. Kontur dan rutenya berasal dari `tools/motion-splash/export-scene.mjs`.
+- **Ikon aplikasi** memakai ikon ban dan S dari `assets/branding/strideway-icon-color-dark.svg` di atas latar Ink.
+- **Jam tangan dan smartband** hanya terbaca bila siaran detak jantung (HR broadcast) dinyalakan di perangkatnya. Aplikasi memakai profil Bluetooth standar, bukan SDK pabrikan.
+- **TRIMP tanpa sensor HR** diperkirakan dari durasi pada 60% cadangan detak jantung. Aktivitas seperti ini ditandai "estimasi" di detail.
+- **Naik** dihitung dari rata-rata altitude pada jendela 100 m dengan histeresis 3 m, bukan per sampel GPS. Strava memakai koreksi DEM, jadi angkanya bisa berbeda sedikit.
+- **Watt** adalah estimasi fisika (gravitasi, gulir, aerodinamika) kecuali ada power meter.
+- **Layanan publik**: OpenFreeMap, Esri, AWS Terrarium, Nominatim (maksimal 1 permintaan per detik, sudah diatur), dan brouter.de dipakai tanpa key. Untuk pemakaian ramai, pertimbangkan server sendiri.
+- **Ollama/9Router** di jaringan lokal memakai `http://`, sehingga `usesCleartextTraffic` aktif. Penyedia lain tetap HTTPS.

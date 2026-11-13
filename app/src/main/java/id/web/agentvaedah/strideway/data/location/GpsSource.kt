@@ -7,16 +7,17 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Looper
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import id.web.agentvaedah.strideway.core.model.LatLon
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import javax.inject.Inject
-import javax.inject.Singleton
 
 data class GpsSample(
     val timeMs: Long,
@@ -25,6 +26,8 @@ data class GpsSample(
     val speedMps: Double?,
     val bearingDeg: Float?,
     val accuracyM: Float?,
+    /** Vertical (altitude) accuracy; null when the platform does not report one. */
+    val verticalAccuracyM: Double? = null,
 )
 
 /**
@@ -79,6 +82,7 @@ class GpsSource @Inject constructor(@ApplicationContext private val context: Con
         speedMps = if (hasSpeed()) speed.toDouble() else null,
         bearingDeg = if (hasBearing()) bearing else null,
         accuracyM = if (hasAccuracy()) accuracy else null,
+        verticalAccuracyM = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && hasVerticalAccuracy()) verticalAccuracyMeters.toDouble() else null,
     )
 
     private companion object {

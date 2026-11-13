@@ -44,6 +44,12 @@ interface ActivityDao {
     @Query("UPDATE activities SET hideStartM = :hideStartM, hideEndM = :hideEndM, hideMap = :hideMap WHERE id = :id")
     suspend fun updateVisibility(id: Long, hideStartM: Int, hideEndM: Int, hideMap: Boolean)
 
+    @Query("UPDATE activities SET statsVersion = :version WHERE id = :id")
+    suspend fun setStatsVersion(id: Long, version: Int)
+
+    @Query("SELECT id FROM activities WHERE elapsedMs > 0 AND statsVersion < :version ORDER BY startMs LIMIT :limit")
+    suspend fun needingStats(version: Int, limit: Int): List<Long>
+
     @Query("UPDATE activities SET effortsVersion = :version WHERE id = :id")
     suspend fun setEffortsVersion(id: Long, version: Int)
 

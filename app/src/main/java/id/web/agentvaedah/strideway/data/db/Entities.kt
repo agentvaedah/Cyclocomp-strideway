@@ -31,6 +31,8 @@ data class ActivityEntity(
     val movingMs: Long = 0,
     val distanceM: Double = 0.0,
     val elevationGainM: Double = 0.0,
+    // Added in schema 4.
+    @ColumnInfo(defaultValue = "0") val maxElevationM: Double = 0.0,
     val calories: Double = 0.0,
     val avgHr: Int? = null,
     val maxHr: Int? = null,
@@ -50,6 +52,8 @@ data class ActivityEntity(
     @ColumnInfo(defaultValue = "0") val hideMap: Boolean = false,
     /** BestEfforts.VERSION the stored efforts were computed with; 0 means not yet. */
     @ColumnInfo(defaultValue = "0") val effortsVersion: Int = 0,
+    /** ActivityStatsCalculator.VERSION the stored summary was computed with; 0 means recompute. */
+    @ColumnInfo(defaultValue = "0") val statsVersion: Int = 0,
 )
 
 @Serializable

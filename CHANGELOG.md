@@ -4,7 +4,8 @@ Setiap versi di bawah sesuai dengan file ZIP yang dikirim. Kolom "Commit" adalah
 
 | Versi | Tanggal | Commit | File |
 |---|---|---|---|
-| 0.5.0 | 16-10-2026 | tag `v0.5` | `Strideway-v0.5-part1.zip` + `-part2.zip` |
+| 0.5.1 | 05-11-2026 | tag `v0.5.1` | `Strideway-v0.5.1-part1.zip` + `-part2.zip` |
+| 0.5.0 | 16-10-2026 | tag `v0.5` | `Strideway-v0.5.0-part1.zip` + `-part2.zip` |
 | 0.4 | 14-10-2026 | `3d8a6d8` | `Strideway-v0.4.zip` (atau `-part1` + `-part2`) |
 | 0.3.1 | 13-10-2026 | `5c71860` | `Strideway-v0.3.1.zip` |
 | 0.3 | 13-10-2026 | `a1e7c1d` | `Strideway-v0.3.zip` |
@@ -12,6 +13,25 @@ Setiap versi di bawah sesuai dengan file ZIP yang dikirim. Kolom "Commit" adalah
 | 0.1 | 12-10-2026 | `589952b` | `Strideway.zip` |
 
 Mulai 0.5.0, `versionName` di `app/build.gradle.kts` sama dengan nomor versi di sini dan tampil di bawah layar Pengaturan. Versi sebelumnya masih tertulis `0.1.0` di aplikasi.
+
+---
+
+## 0.5.1 (05-11-2026)
+
+**Database naik ke versi 4: kolom "Elevasi maks" dan penanda versi perhitungan. Buat backup dulu.**
+
+### Diperbaiki
+- **Naik yang terlalu besar** (mis. 697 m untuk rute yang di Strava 95 m). Penyebabnya penghitung lama menambahkan setiap loncatan altitude GPS 2 Hz di atas 3 m, termasuk derau. Sekarang altitude dirata-ratakan pada 100 m jalan, histeresis 3 m hanya menghitung kelebihannya, sampel dengan akurasi vertikal > 25 m diabaikan, dan barometer di-anchor ulang bila melenceng > 20 m. Angka naik akan turun drastis dan lebih dekat ke Strava.
+- Saat jeda, perubahan altitude tidak lagi dihitung sebagai tanjakan.
+
+### Baru
+- **Elevasi maks** di detail aktivitas dan sebagai keterangan di layar Rekam.
+- **Hitung ulang otomatis** sekali setelah update untuk semua aktivitas lama, jadi angka lama langsung terkoreksi tanpa Anda buka satu per satu.
+- **Form hari ini** dirombak: angka besar dengan status berwarna dan kalimat saran, plus grafik dengan grid, label nilai, tanggal awal/tengah/akhir, penanda hari ini, dan legenda berangka.
+
+### Catatan
+- Rekor "elevasi terbanyak" ikut berubah karena dihitung dari angka naik yang baru.
+- Strava memakai koreksi DEM, jadi selisih kecil tetap wajar.
 
 ---
 

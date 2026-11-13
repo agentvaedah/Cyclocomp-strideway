@@ -265,6 +265,9 @@ private fun DetailBody(
                 add(BentoCell(span = 2) { BentoStat("Jarak", Format.km(a.distanceM), "km", valueStyle = MetricText.Huge) })
                 add(BentoCell { BentoStat("Waktu bergerak", Format.duration(a.movingMs), caption = "Total ${Format.duration(a.elapsedMs)}", valueStyle = MetricText.Medium) })
                 add(BentoCell { BentoStat("Naik", Format.integer(a.elevationGainM), "m", valueStyle = MetricText.Medium) })
+                if (a.maxElevationM > 0) {
+                    add(BentoCell { BentoStat("Elevasi maks", Format.integer(a.maxElevationM), "m", valueStyle = MetricText.Small) })
+                }
                 if (a.sport == Sport.RUN) {
                     add(BentoCell { BentoStat("Pace rata-rata", Format.pace(a.avgSpeedKmh / 3.6), "/km", valueStyle = MetricText.Small) })
                 } else {

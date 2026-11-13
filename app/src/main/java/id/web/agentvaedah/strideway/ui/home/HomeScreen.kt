@@ -36,7 +36,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -63,10 +62,10 @@ import id.web.agentvaedah.strideway.ui.components.BentoCell
 import id.web.agentvaedah.strideway.ui.components.BentoGrid
 import id.web.agentvaedah.strideway.ui.components.EmptyState
 import id.web.agentvaedah.strideway.ui.components.ErrorState
-import id.web.agentvaedah.strideway.ui.components.LineChart
 import id.web.agentvaedah.strideway.ui.components.LoadingState
 import id.web.agentvaedah.strideway.ui.components.SectionTitle
-import id.web.agentvaedah.strideway.ui.components.Series
+import id.web.agentvaedah.strideway.ui.components.TrendChart
+import id.web.agentvaedah.strideway.ui.components.TrendSeries
 import id.web.agentvaedah.strideway.ui.motion.AnimatedNumber
 import id.web.agentvaedah.strideway.ui.motion.Motion
 import id.web.agentvaedah.strideway.ui.motion.reduceMotion
@@ -268,34 +267,52 @@ private fun TrainingCard(load: WeekLoad?, today: TodaySession?, onRide: (TodaySe
 private fun FormCard(points: List<TrainingLoad.FitnessPoint>, estimated: Boolean, hasActivities: Boolean) {
     val today = points.lastOrNull()
     val form = today?.form?.roundToInt() ?: 0
+    val status = formStatus(form, today != null)
     // Form decides today's session, so it alone spans the grid; fitness and fatigue explain it below.
     BentoGrid(
         listOf(
             BentoCell(span = 2) {
-                Text("Form hari ini", style = MetricText.Label, color = Palette.TextMuted)
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text((if (form > 0) "+" else "") + form, style = MetricText.Huge, color = Palette.Text)
-                    Spacer(Modifier.width(12.dp))
-                    Text(formAdvice(today), style = MaterialTheme.typography.bodyMedium, color = Palette.TextMuted, modifier = Modifier.padding(bottom = 10.dp))
+                Row(verticalAlignment = Alignment.Top) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Form hari ini", style = MetricText.Label, color = Palette.TextMuted)
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            AnimatedNumber(
+                                form.toDouble(),
+                                format = { x -> (if (x >= 0.5) "+" else "") + x.roundToInt() },
+                                style = MetricText.Huge,
+                                color = Palette.Text,
+                            )
+                        }
+                    }
+                    StatusChip(status)
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(4.dp))
+                Text(status.advice, style = MaterialTheme.typography.bodyMedium, color = Palette.TextMuted)
+                Spacer(Modifier.height(14.dp))
                 if (hasActivities) {
-                    LineChart(
+                    TrendChart(
                         series = listOf(
-                            Series(points.map { it.fitness.toFloat() }, Palette.Info),
-                            Series(points.map { it.fatigue.toFloat() }, Palette.Accent),
-                            Series(points.map { it.form.toFloat() }, Palette.Text, dashed = true),
+                            TrendSeries("Fitness", points.map { it.fitness.toFloat() }, Palette.Info, area = true),
+                            TrendSeries("Fatigue", points.map { it.fatigue.toFloat() }, Palette.Accent),
+                            TrendSeries("Form", points.map { it.form.toFloat() }, Palette.Text, dashed = true),
                         ),
-                        description = "Fitness, fatigue, dan form 42 hari terakhir",
-                        height = 110.dp,
-                        zeroLine = true,
+                        description = "Fitness, fatigue, dan form 42 hari terakhir. Angka di legenda adalah nilai hari ini.",
+                        height = 150.dp,
+                        startLabel = dayLabel(points.firstOrNull()?.epochDay, "d MMM"),
+                        middleLabel = dayLabel(points.getOrNull(points.size / 2)?.epochDay, "d MMM"),
+                        endLabel = "hari ini",
                     )
-                    Text("42 hari terakhir. Garis putus-putus: form.", style = MaterialTheme.typography.bodySmall, color = Palette.TextMuted)
+                    Text(
+                        "42 hari terakhir. Fitness naik perlahan, fatigue bergerak cepat, form adalah selisihnya.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Palette.TextMuted,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
                 } else {
                     Text("Grafik muncul setelah aktivitas pertama tersimpan.", style = MaterialTheme.typography.bodySmall, color = Palette.TextMuted)
                 }
                 if (estimated) {
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(6.dp))
                     Text(
                         "Sebagian aktivitas tanpa sensor detak jantung; bebannya diperkirakan dari durasi.",
                         style = MaterialTheme.typography.bodySmall,
@@ -316,16 +333,34 @@ private fun FormCard(points: List<TrainingLoad.FitnessPoint>, estimated: Boolean
     )
 }
 
-private fun formAdvice(p: TrainingLoad.FitnessPoint?): String {
-    val form = p?.form ?: return "Belum ada data latihan"
-    return when {
-        form > 15 -> "Segar. Cocok untuk event atau tes"
-        form > 5 -> "Siap untuk sesi berat"
-        form > -10 -> "Seimbang, beban terjaga"
-        form > -30 -> "Sedang membangun. Jaga tidur dan makan"
-        else -> "Beban tinggi. Pertimbangkan hari pemulihan"
+/** The form number as a word, a colour and one line of advice; colour never carries the meaning alone. */
+private data class FormStatus(val label: String, val advice: String, val color: Color)
+
+private fun formStatus(form: Int, hasData: Boolean): FormStatus = when {
+    !hasData -> FormStatus("Belum ada data", "Rekam aktivitas pertama untuk melihat form.", Palette.TextMuted)
+    form > 15 -> FormStatus("Segar", "Tubuh siap. Waktu yang baik untuk event atau tes.", Palette.Success)
+    form > 5 -> FormStatus("Siap", "Cocok untuk sesi berat atau interval.", Palette.Info)
+    form > -10 -> FormStatus("Seimbang", "Beban dan pemulihan terjaga.", Palette.Text)
+    form > -30 -> FormStatus("Membangun", "Sedang menumpuk beban. Jaga tidur dan makan.", Palette.Warning)
+    else -> FormStatus("Lelah", "Beban tinggi. Pertimbangkan hari pemulihan.", Palette.Error)
+}
+
+@Composable
+private fun StatusChip(s: FormStatus) {
+    Row(
+        Modifier
+            .background(s.color.copy(alpha = 0.16f), CircleShape)
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(7.dp).background(s.color, CircleShape))
+        Spacer(Modifier.width(6.dp))
+        Text(s.label, style = MaterialTheme.typography.labelLarge, color = s.color)
     }
 }
+
+private fun dayLabel(epochDay: Long?, pattern: String): String? =
+    epochDay?.let { LocalDate.ofEpochDay(it).format(DateTimeFormatter.ofPattern(pattern, idLocale)) }
 
 @Composable
 private fun LegendValue(label: String, value: Int, color: Color) {

@@ -13,6 +13,8 @@ data class ActivityStats(
     val movingMs: Long,
     val distanceM: Double,
     val elevationGainM: Double,
+    /** Highest altitude on the route; null when the file has no elevation. */
+    val maxElevationM: Double?,
     val avgSpeedKmh: Double,
     val maxSpeedKmh: Double,
     val avgHr: Int?,
@@ -23,6 +25,8 @@ data class ActivityStats(
 )
 
 object ActivityStatsCalculator {
+    /** Bumped whenever the statistics formulas change, so stored activities get recomputed once. */
+    const val VERSION = 2
     private const val MOVING_KMH = 2.5
     private const val MAX_GAP_MS = 30_000L
 
@@ -30,6 +34,7 @@ object ActivityStatsCalculator {
     fun compute(points: List<TrackPoint>, sport: Sport, athlete: Athlete): ActivityStats {
         val distance = TrackStats.distanceM(points)
         val gain = TrackStats.elevationGainM(points)
+        val maxEle = TrackStats.maxElevationM(points)
         val timed = points.filter { it.timeMs != null }
         val start = timed.firstOrNull()?.timeMs
         val elapsed = if (timed.size >= 2) timed.last().timeMs!! - start!! else 0L
@@ -62,6 +67,7 @@ object ActivityStatsCalculator {
             movingMs = moving,
             distanceM = distance,
             elevationGainM = gain,
+            maxElevationM = maxEle,
             avgSpeedKmh = if (moving > 0) distance / (moving / 1000.0) * 3.6 else 0.0,
             maxSpeedKmh = maxKmh,
             avgHr = avgHr?.toInt(),

@@ -31,6 +31,7 @@ import id.web.agentvaedah.strideway.di.AppScope
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlinx.coroutines.CoroutineScope
@@ -195,7 +196,7 @@ class RecordingController @Inject constructor(
         }
         ses.gpsCourse = s.bearingDeg?.toDouble()?.takeIf { speed > 1.0 }
         if (speed * 3.6 >= 6.0) ses.heading = ses.headingFilter.update(ses.gpsCourse, null, speed * 3.6)?.toFloat()
-        record(ses, s.timeMs, s.pos, s.altitudeM, s.speedMps, interpolated = false)
+        record(ses, s.timeMs, s.pos, s.altitudeM, s.speedMps, interpolated = false, verticalAccuracyM = s.verticalAccuracyM)
     }
 
     private suspend fun onMotion(m: MotionSample) = lock.withLock {
@@ -216,9 +217,15 @@ class RecordingController @Inject constructor(
             }
             is MotionSample.Pressure -> {
                 ses.pressureHpa = m.hpa
-                // Barometer is smooth but has no absolute datum; anchor it to GPS altitude once.
+                // The barometer has no absolute datum, so it is tied to GPS altitude. Re-anchoring when the
+                // two drift apart (weather change, a bad first fix) keeps the switch between sources from
+                // being booked as a climb.
                 val gpsAlt = ses.lastAltitude
-                if (ses.baroOffset == null && gpsAlt != null && ses.fix == GpsFix.OK) ses.baroOffset = gpsAlt - m.altitudeM
+                if (gpsAlt != null && ses.fix == GpsFix.OK) {
+                    val offset = gpsAlt - m.altitudeM
+                    val current = ses.baroOffset
+                    if (current == null || abs(current - offset) > BARO_REANCHOR_M) ses.baroOffset = offset
+                }
                 ses.baroOffset?.let { ses.acc.onBarometricAltitude(m.altitudeM + it, m.timeMs) }
             }
         }
@@ -244,7 +251,7 @@ class RecordingController @Inject constructor(
                 val est = ses.dr.estimate(now)
                 if (est != null) {
                     ses.fix = GpsFix.DEAD_RECKONING
-                    record(ses, now, est, null, null, interpolated = true)
+                    record(ses, now, est, null, null, interpolated = true, verticalAccuracyM = null)
                 } else {
                     ses.fix = GpsFix.LOST
                 }
@@ -253,8 +260,16 @@ class RecordingController @Inject constructor(
         publish(now)
     }
 
-    private fun record(ses: Session, timeMs: Long, pos: LatLon, alt: Double?, speed: Double?, interpolated: Boolean) {
-        ses.acc.onLocation(timeMs, pos, alt, speed, interpolated)
+    private fun record(
+        ses: Session,
+        timeMs: Long,
+        pos: LatLon,
+        alt: Double?,
+        speed: Double?,
+        interpolated: Boolean,
+        verticalAccuracyM: Double? = null,
+    ) {
+        ses.acc.onLocation(timeMs, pos, alt, speed, interpolated, verticalAccuracyM)
         ses.position = pos
         val m = ses.acc.tick(timeMs)
         if (!m.paused) {
@@ -317,7 +332,10 @@ class RecordingController @Inject constructor(
             lock.withLock {
                 val ses = session ?: return@withLock
                 val now = System.currentTimeMillis()
-                ses.acc.setManualPause(!ses.acc.tick(now).manualPaused, now)
+                val pausing = !ses.acc.tick(now).manualPaused
+                ses.acc.setManualPause(pausing, now)
+                // Standing still is not climbing, however much the altitude drifts meanwhile.
+                if (pausing) ses.acc.resetGainReference()
             }
             publish(System.currentTimeMillis())
         }
@@ -375,6 +393,7 @@ class RecordingController @Inject constructor(
     private companion object {
         const val TICK_MS = 1_000L
         const val FLUSH_MS = 5_000L
+        const val BARO_REANCHOR_M = 20.0
         const val PROFILE_STEP_M = 25.0
         const val PROFILE_MAX = 240
         const val MIN_SAVE_DISTANCE_M = 10.0

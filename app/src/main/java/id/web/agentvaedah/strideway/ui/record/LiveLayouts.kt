@@ -132,7 +132,17 @@ fun ExpandedMetrics(
                 }
                 add(BentoCell { HeartStat(m, athlete) })
                 if (!run) add(BentoCell { BentoStat(if (m.powerWatts != null) "Power" else "Power estimasi", watts?.toString() ?: "--", "W", valueStyle = MetricText.Medium) })
-                add(BentoCell { BentoStat("Naik", Format.integer(m.elevationGainM), "m", valueStyle = MetricText.Medium) })
+                add(
+                    BentoCell {
+                        BentoStat(
+                            "Naik",
+                            Format.integer(m.elevationGainM),
+                            "m",
+                            caption = m.maxElevationM?.let { "Maks ${Format.integer(it)} m" },
+                            valueStyle = MetricText.Medium,
+                        )
+                    },
+                )
                 add(BentoCell { BentoStat("Gradien", m.gradePercent?.let { decimalId(it, 1) } ?: "--", "%", valueStyle = MetricText.Medium) })
             },
             modifier = Modifier.padding(horizontal = 12.dp),

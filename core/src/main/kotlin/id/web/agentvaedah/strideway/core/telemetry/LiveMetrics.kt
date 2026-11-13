@@ -9,6 +9,8 @@ data class LiveMetrics(
     val maxSpeedKmh: Double = 0.0,
     val altitudeM: Double? = null,
     val elevationGainM: Double = 0.0,
+    /** Highest point reached so far, for "Elevasi maks"; null until an altitude arrives. */
+    val maxElevationM: Double? = null,
     val gradePercent: Double? = null,
     val heartRate: Int? = null,
     val avgHeartRate: Int? = null,
