@@ -19,6 +19,9 @@ jobs:
           java-version: "17"
 
       - uses: android-actions/setup-android@v3
+        with:
+          # The default also installs the obsolete 'tools' package, which no longer exists.
+          packages: platform-tools
 
       # The repo has no gradle-wrapper.jar (it was written offline), so Gradle comes from the action.
       - uses: gradle/actions/setup-gradle@v4
