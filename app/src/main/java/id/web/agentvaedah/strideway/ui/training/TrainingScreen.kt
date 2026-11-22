@@ -88,6 +88,7 @@ private val dayFmt = DateTimeFormatter.ofPattern("EEE d MMM", idLocale)
  * Latihan tab: the training plan, the session library and the AI coach in one place. Sessions are chosen
  * here and ridden from Record, where intervals step automatically.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TrainingScreen(onOpenCoach: () -> Unit, onRide: () -> Unit, vm: TrainingViewModel = hiltViewModel()) {
     var tab by rememberSaveable { mutableIntStateOf(0) }

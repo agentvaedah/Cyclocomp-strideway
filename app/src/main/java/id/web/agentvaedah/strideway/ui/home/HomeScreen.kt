@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -267,7 +268,7 @@ private fun TrainingCard(load: WeekLoad?, today: TodaySession?, onRide: (TodaySe
 private fun FormCard(points: List<TrainingLoad.FitnessPoint>, estimated: Boolean, hasActivities: Boolean) {
     val today = points.lastOrNull()
     val form = today?.form?.roundToInt() ?: 0
-    val status = formStatus(form, today != null)
+    val status = formStatus(form, hasActivities && today != null)
     // Form decides today's session, so it alone spans the grid; fitness and fatigue explain it below.
     BentoGrid(
         listOf(
@@ -336,6 +337,7 @@ private fun FormCard(points: List<TrainingLoad.FitnessPoint>, estimated: Boolean
 /** The form number as a word, a colour and one line of advice; colour never carries the meaning alone. */
 private data class FormStatus(val label: String, val advice: String, val color: Color)
 
+@Composable
 private fun formStatus(form: Int, hasData: Boolean): FormStatus = when {
     !hasData -> FormStatus("Belum ada data", "Rekam aktivitas pertama untuk melihat form.", Palette.TextMuted)
     form > 15 -> FormStatus("Segar", "Tubuh siap. Waktu yang baik untuk event atau tes.", Palette.Success)

@@ -42,6 +42,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -80,6 +81,7 @@ import java.util.Locale
 private val monthFmt = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.forLanguageTag("id-ID"))
 
 /** Strava-style You tab: header with profile and gear, then Progress and Aktivitas tabs. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun YouScreen(
     onOpenSettings: () -> Unit,

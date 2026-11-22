@@ -11,10 +11,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.TurnLeft
-import androidx.compose.material.icons.automirrored.outlined.TurnRight
-import androidx.compose.material.icons.automirrored.outlined.TurnSlightLeft
-import androidx.compose.material.icons.automirrored.outlined.TurnSlightRight
+import androidx.compose.material.icons.outlined.TurnLeft
+import androidx.compose.material.icons.outlined.TurnRight
+import androidx.compose.material.icons.outlined.TurnSlightLeft
+import androidx.compose.material.icons.outlined.TurnSlightRight
 import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.RoundaboutRight
@@ -42,10 +42,10 @@ import kotlin.math.roundToInt
 
 fun ManeuverType.icon(): ImageVector = when (this) {
     ManeuverType.STRAIGHT -> Icons.Outlined.ArrowUpward
-    ManeuverType.SLIGHT_LEFT, ManeuverType.KEEP_LEFT -> Icons.AutoMirrored.Outlined.TurnSlightLeft
-    ManeuverType.LEFT, ManeuverType.SHARP_LEFT -> Icons.AutoMirrored.Outlined.TurnLeft
-    ManeuverType.SLIGHT_RIGHT, ManeuverType.KEEP_RIGHT -> Icons.AutoMirrored.Outlined.TurnSlightRight
-    ManeuverType.RIGHT, ManeuverType.SHARP_RIGHT -> Icons.AutoMirrored.Outlined.TurnRight
+    ManeuverType.SLIGHT_LEFT, ManeuverType.KEEP_LEFT -> Icons.Outlined.TurnSlightLeft
+    ManeuverType.LEFT, ManeuverType.SHARP_LEFT -> Icons.Outlined.TurnLeft
+    ManeuverType.SLIGHT_RIGHT, ManeuverType.KEEP_RIGHT -> Icons.Outlined.TurnSlightRight
+    ManeuverType.RIGHT, ManeuverType.SHARP_RIGHT -> Icons.Outlined.TurnRight
     ManeuverType.U_TURN -> Icons.Outlined.UTurnLeft
     ManeuverType.ROUNDABOUT -> Icons.Outlined.RoundaboutRight
 }
