@@ -268,7 +268,7 @@ private fun TrainingCard(load: WeekLoad?, today: TodaySession?, onRide: (TodaySe
 private fun FormCard(points: List<TrainingLoad.FitnessPoint>, estimated: Boolean, hasActivities: Boolean) {
     val today = points.lastOrNull()
     val form = today?.form?.roundToInt() ?: 0
-    val status = formStatus(form, today != null)
+    val status = formStatus(form, hasActivities && today != null)
     // Form decides today's session, so it alone spans the grid; fitness and fatigue explain it below.
     BentoGrid(
         listOf(
