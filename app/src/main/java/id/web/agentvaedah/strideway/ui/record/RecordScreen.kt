@@ -1,6 +1,7 @@
 package id.web.agentvaedah.strideway.ui.record
 
 import android.view.WindowManager
+import android.os.SystemClock
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -31,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import id.web.agentvaedah.strideway.service.RecordingState
 import id.web.agentvaedah.strideway.core.format.Format
 import id.web.agentvaedah.strideway.core.route.ElevationProfile
+import id.web.agentvaedah.strideway.core.route.RouteFollower
 import id.web.agentvaedah.strideway.ui.components.ElevationTimeline
 import id.web.agentvaedah.strideway.ui.theme.Palette
 
@@ -113,7 +115,16 @@ private fun LiveDashboard(s: RecordingState.Active, vm: RecordViewModel, onOpenW
                 }
                 if (showRoute && route != null) {
                     Text(route.name, style = MaterialTheme.typography.titleMedium)
-                    val progress = nav?.takeUnless { it.offRoute || reroute != null }?.progressM
+                    val progress = if (reroute == null) {
+                        nav?.takeUnless { it.offRoute }?.progressM
+                    } else {
+                        // Navigation metres on a detour are not metres along the saved profile.
+                        val saved = remember(route) { RouteFollower(route.points, holdMs = 0L) }
+                        remember(saved, s.position) {
+                            s.position?.let { saved.update(it, SystemClock.elapsedRealtime()) }
+                                ?.takeUnless { it.offRoute }?.progressM
+                        }
+                    }
                     ElevationTimeline(route.profile, progress, height = 155.dp)
                     if (progress == null) Text("Posisi pada rute belum tersedia.", color = Palette.TextMuted)
                 } else {
