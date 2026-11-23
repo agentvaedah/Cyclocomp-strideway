@@ -1,6 +1,7 @@
 package id.web.agentvaedah.strideway.core.coach
 
 import id.web.agentvaedah.strideway.core.format.Format
+import id.web.agentvaedah.strideway.core.geo.ElevationGain
 import id.web.agentvaedah.strideway.core.geo.Geo
 import id.web.agentvaedah.strideway.core.model.Athlete
 import id.web.agentvaedah.strideway.core.model.Sport
@@ -104,9 +105,12 @@ object CoachFileAnalyzer {
         }
         val bucketKm = (bucketM / 1_000.0).roundToInt()
         val out = ArrayList<String>()
+        val eleGain = ElevationGain()
+        timed.first().ele?.let { eleGain.add(0.0, it) }
+        var totalDist = 0.0
+        var splitStartGain = 0.0
         var accDist = 0.0
         var accTimeMs = 0L
-        var accGain = 0.0
         var hrSum = 0L
         var hrCount = 0
         var powerSum = 0L
@@ -116,15 +120,16 @@ object CoachFileAnalyzer {
         fun flush(distM: Double) {
             if (distM < 200.0 || accTimeMs <= 0L) return
             val kmh = distM / (accTimeMs / 1000.0) * 3.6
+            val segGain = (eleGain.gainM - splitStartGain).coerceAtLeast(0.0)
             val hrPart = if (hrCount > 0) ", HR ${(hrSum / hrCount)} bpm" else ""
             val pwrPart = if (powerCount > 0) ", ${(powerSum / powerCount)} W" else ""
             val startKm = (idx - 1) * bucketKm
             val endKm = startKm + (distM / 1000.0)
-            out += "KM $startKm-${Format.oneDecimal(endKm)}: ${Format.oneDecimal(kmh)} km/j, +${accGain.roundToInt()} m$hrPart$pwrPart"
+            out += "KM $startKm-${Format.oneDecimal(endKm)}: ${Format.oneDecimal(kmh)} km/j, +${segGain.roundToInt()} m$hrPart$pwrPart"
             idx++
+            splitStartGain = eleGain.gainM
             accDist = 0.0
             accTimeMs = 0L
-            accGain = 0.0
             hrSum = 0L
             hrCount = 0
             powerSum = 0L
@@ -133,13 +138,16 @@ object CoachFileAnalyzer {
 
         for ((a, b) in timed.zipWithNext()) {
             val dt = b.timeMs!! - a.timeMs!!
-            if (dt <= 0L || dt > 30_000L) continue
+            if (dt <= 0L || dt > 30_000L) {
+                eleGain.reset()
+                b.ele?.let { eleGain.add(totalDist, it) }
+                continue
+            }
             val d = Geo.distanceM(a.latLon, b.latLon)
+            totalDist += d
             accDist += d
             accTimeMs += dt
-            val e1 = a.ele
-            val e2 = b.ele
-            if (e1 != null && e2 != null && e2 > e1) accGain += (e2 - e1)
+            b.ele?.let { eleGain.add(totalDist, it) }
             b.hr?.takeIf { it in 25..250 }?.let { hrSum += it; hrCount++ }
             b.power?.takeIf { it >= 0 }?.let { powerSum += it; powerCount++ }
             if (accDist >= bucketM && out.size < 16) {
