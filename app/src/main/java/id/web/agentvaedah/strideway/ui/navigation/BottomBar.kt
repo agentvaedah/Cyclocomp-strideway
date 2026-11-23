@@ -1,5 +1,7 @@
 package id.web.agentvaedah.strideway.ui.navigation
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -10,47 +12,54 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.FitnessCenter
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Map
-import androidx.compose.material.icons.outlined.Person
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import id.web.agentvaedah.strideway.ui.theme.Palette
 
-private data class Tab(val route: String, val label: String, val icon: ImageVector)
+private data class Tab(
+    val route: String,
+    val label: String,
+    val outlined: ImageVector,
+    val filled: ImageVector,
+)
 
 private val leftTabs = listOf(
-    Tab(Routes.HOME, "Home", Icons.Outlined.Home),
-    Tab(Routes.MAPS, "Peta", Icons.Outlined.Map),
+    Tab(Routes.HOME, "Home", NavIcons.HomeOutlined, NavIcons.HomeFilled),
+    Tab(Routes.MAPS, "Peta", NavIcons.MapOutlined, NavIcons.MapFilled),
 )
 private val rightTabs = listOf(
-    Tab(Routes.TRAINING, "Latihan", Icons.Outlined.FitnessCenter),
-    Tab(Routes.YOU, "You", Icons.Outlined.Person),
+    Tab(Routes.TRAINING, "Latihan", NavIcons.TrainingOutlined, NavIcons.TrainingFilled),
+    Tab(Routes.YOU, "You", NavIcons.YouOutlined, NavIcons.YouFilled),
 )
 
 /**
- * Four standard tabs around a raised Record button: recording is the one action
- * that has to be reachable with a glove on, so it gets the largest target and the accent.
+ * Four athletic navigation tabs flanking a prominent Record action. Active tabs swap to their
+ * filled icon inside a subtle Signal pill so selection reads immediately without heavy bars.
  */
 @Composable
 fun BottomBar(currentRoute: String?, recording: Boolean, onSelect: (String) -> Unit) {
-    Column(Modifier.background(Palette.Bg).navigationBarsPadding()) {
-        HorizontalDivider(color = Palette.Outline)
+    Column(Modifier.background(Palette.Surface).navigationBarsPadding()) {
+        HorizontalDivider(color = Palette.Outline.copy(alpha = 0.6f), thickness = 1.dp)
         Row(
-            Modifier.fillMaxWidth().height(68.dp),
+            Modifier
+                .fillMaxWidth()
+                .height(72.dp)
+                .padding(horizontal = 6.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -63,7 +72,21 @@ fun BottomBar(currentRoute: String?, recording: Boolean, onSelect: (String) -> U
 
 @Composable
 private fun TabItem(tab: Tab, selected: Boolean, onSelect: (String) -> Unit, modifier: Modifier) {
-    val color = if (selected) Palette.Text else Palette.TextMuted
+    val iconColor by animateColorAsState(
+        targetValue = if (selected) Palette.Accent else Palette.TextMuted,
+        animationSpec = tween(160),
+        label = "tab-icon",
+    )
+    val labelColor by animateColorAsState(
+        targetValue = if (selected) Palette.Text else Palette.TextMuted,
+        animationSpec = tween(160),
+        label = "tab-label",
+    )
+    val pillBg by animateColorAsState(
+        targetValue = if (selected) Palette.Accent.copy(alpha = 0.14f) else Color.Transparent,
+        animationSpec = tween(160),
+        label = "tab-pill",
+    )
     Column(
         modifier
             .height(68.dp)
@@ -71,15 +94,21 @@ private fun TabItem(tab: Tab, selected: Boolean, onSelect: (String) -> Unit, mod
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(tab.icon, contentDescription = null, tint = color)
-        Spacer(Modifier.height(4.dp))
-        Text(tab.label, style = MaterialTheme.typography.labelMedium, color = color)
-        Spacer(Modifier.height(2.dp))
         Box(
             Modifier
-                .size(width = 16.dp, height = 2.dp)
-                .background(if (selected) Palette.Accent else Palette.Bg),
-        )
+                .background(pillBg, RoundedCornerShape(14.dp))
+                .padding(horizontal = 14.dp, vertical = 5.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = if (selected) tab.filled else tab.outlined,
+                contentDescription = null,
+                tint = iconColor,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        Spacer(Modifier.height(3.dp))
+        Text(tab.label, style = MaterialTheme.typography.labelSmall, color = labelColor)
     }
 }
 
@@ -94,19 +123,30 @@ private fun RecordTab(selected: Boolean, recording: Boolean, onClick: () -> Unit
     ) {
         Box(
             Modifier
-                .size(48.dp)
+                .size(50.dp)
+                .background(Palette.Accent.copy(alpha = if (selected || recording) 0.22f else 0.12f), CircleShape)
+                .padding(4.dp)
                 .background(Palette.Accent, CircleShape)
-                .then(if (selected) Modifier.border(2.dp, Palette.Text, CircleShape) else Modifier),
+                .then(if (selected) Modifier.border(1.5.dp, Palette.Text, CircleShape) else Modifier),
             contentAlignment = Alignment.Center,
         ) {
-            // Filled dot = idle (press to record); square = a session is running.
             if (recording) {
-                Box(Modifier.size(14.dp).background(Palette.OnAccent, MaterialTheme.shapes.extraSmall))
+                Box(Modifier.size(13.dp).background(Palette.OnAccent, RoundedCornerShape(3.dp)))
             } else {
-                Box(Modifier.size(16.dp).background(Palette.OnAccent, CircleShape))
+                Box(
+                    Modifier
+                        .size(16.dp)
+                        .border(2.5.dp, Palette.OnAccent, CircleShape)
+                        .padding(4.dp)
+                        .background(Palette.OnAccent, CircleShape),
+                )
             }
         }
         Spacer(Modifier.height(2.dp))
-        Text(if (recording) "Merekam" else "Rekam", style = MaterialTheme.typography.labelMedium, color = if (selected) Palette.Text else Palette.TextMuted)
+        Text(
+            if (recording) "Merekam" else "Rekam",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (selected || recording) Palette.Accent else Palette.TextMuted,
+        )
     }
 }

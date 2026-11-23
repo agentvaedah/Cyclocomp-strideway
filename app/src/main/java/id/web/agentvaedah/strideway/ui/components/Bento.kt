@@ -1,6 +1,7 @@
 package id.web.agentvaedah.strideway.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -58,7 +59,8 @@ fun BentoGrid(cells: List<BentoCell>, modifier: Modifier = Modifier) {
                             .weight(if (row.size == 1 && cell.span < 2) 0.5f else 1f)
                             .fillMaxHeight()
                             .background(Palette.Surface, MaterialTheme.shapes.large)
-                            .padding(14.dp),
+                            .border(1.dp, Palette.Outline.copy(alpha = 0.6f), MaterialTheme.shapes.large)
+                            .padding(16.dp),
                     ) { cell.content() }
                 }
                 // A lone small cell keeps its half width instead of stretching into a banner.
@@ -68,7 +70,7 @@ fun BentoGrid(cells: List<BentoCell>, modifier: Modifier = Modifier) {
     }
 }
 
-private val GAP = 10.dp
+private val GAP = 12.dp
 
 /** Label above a big value with its unit; [caption] adds one line of context under it. */
 @Composable

@@ -18,7 +18,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -47,8 +50,9 @@ fun ScrubBarChart(
 ) {
     var selected by remember(points) { mutableStateOf<Int?>(null) }
     val barColor = Palette.Accent
-    val dimColor = Palette.Accent.copy(alpha = 0.35f)
-    val baseline = Palette.Outline
+    val dimColor = Palette.Accent.copy(alpha = 0.28f)
+    val trackBg = Palette.SurfaceHigh.copy(alpha = 0.65f)
+    val baseline = Palette.Outline.copy(alpha = 0.6f)
     val cursor = Palette.TextMuted
 
     Column(modifier) {
@@ -79,14 +83,20 @@ fun ScrubBarChart(
             if (points.isEmpty()) return@Canvas
             val max = points.maxOf { it.value }.coerceAtLeast(1e-9)
             val slot = size.width / points.size
-            val barW = minOf(24.dp.toPx(), slot * 0.7f)
-            val top = 6.dp.toPx()
+            val barW = minOf(22.dp.toPx(), slot * 0.64f)
+            val top = 8.dp.toPx()
             val usable = size.height - top
-            val r = minOf(4.dp.toPx(), barW / 2)
+            val r = minOf(7.dp.toPx(), barW / 2)
             points.forEachIndexed { i, p ->
+                val x = i * slot + (slot - barW) / 2
+                drawRoundRect(
+                    color = trackBg,
+                    topLeft = Offset(x, top),
+                    size = Size(barW, usable),
+                    cornerRadius = CornerRadius(r, r),
+                )
                 val h = (p.value / max * usable).toFloat()
                 if (h <= 0f) return@forEachIndexed
-                val x = i * slot + (slot - barW) / 2
                 val y = size.height - h
                 val path = Path().apply {
                     addRoundRect(
@@ -94,17 +104,32 @@ fun ScrubBarChart(
                             left = x, top = y, right = x + barW, bottom = size.height,
                             topLeftCornerRadius = CornerRadius(r, r),
                             topRightCornerRadius = CornerRadius(r, r),
-                            bottomLeftCornerRadius = CornerRadius.Zero,
-                            bottomRightCornerRadius = CornerRadius.Zero,
+                            bottomLeftCornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx()),
+                            bottomRightCornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx()),
                         ),
                     )
                 }
-                drawPath(path, if (selected == null || selected == i) barColor else dimColor)
+                val active = selected == null || selected == i
+                val topCol = if (active) barColor else dimColor
+                drawPath(
+                    path,
+                    Brush.verticalGradient(
+                        colors = listOf(topCol, topCol.copy(alpha = if (active) 0.55f else 0.25f)),
+                        startY = y,
+                        endY = size.height,
+                    ),
+                )
             }
             drawLine(baseline, Offset(0f, size.height - 0.5f), Offset(size.width, size.height - 0.5f), strokeWidth = 1.dp.toPx())
             selected?.let { i ->
                 val cx = i * slot + slot / 2
-                drawLine(cursor, Offset(cx, 0f), Offset(cx, size.height), strokeWidth = 1.dp.toPx())
+                drawLine(
+                    cursor.copy(alpha = 0.6f),
+                    Offset(cx, 0f),
+                    Offset(cx, size.height),
+                    strokeWidth = 1.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f)),
+                )
             }
         }
         // First, middle and last labels only: enough to anchor the time axis without crowding.

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
@@ -63,11 +64,8 @@ fun LineChart(
         series.forEachIndexed { index, s ->
             if (s.values.size < 2) return@forEachIndexed
             val step = size.width / (s.values.size - 1)
-            val path = Path()
-            s.values.forEachIndexed { i, v ->
-                val p = Offset(i * step, y(v))
-                if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y)
-            }
+            val pts = s.values.mapIndexed { i, v -> Offset(i * step, y(v)) }
+            val path = smoothPath(pts)
             if (fillFirst && index == 0) {
                 val fill = Path().apply {
                     addPath(path)
@@ -75,16 +73,23 @@ fun LineChart(
                     lineTo(0f, size.height)
                     close()
                 }
-                drawPath(fill, s.color.copy(alpha = 0.18f))
+                drawPath(
+                    fill,
+                    Brush.verticalGradient(
+                        colors = listOf(s.color.copy(alpha = 0.24f), s.color.copy(alpha = 0.0f)),
+                        startY = pad,
+                        endY = size.height,
+                    ),
+                )
             }
             drawPath(
                 path,
                 s.color,
                 style = Stroke(
-                    width = 2.dp.toPx(),
+                    width = 2.4.dp.toPx(),
                     cap = StrokeCap.Round,
                     join = StrokeJoin.Round,
-                    pathEffect = if (s.dashed) PathEffect.dashPathEffect(floatArrayOf(8f, 6f)) else null,
+                    pathEffect = if (s.dashed) PathEffect.dashPathEffect(floatArrayOf(10f, 6f)) else null,
                 ),
             )
         }

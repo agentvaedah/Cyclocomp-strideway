@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
@@ -44,7 +46,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -160,24 +166,32 @@ private fun TodayHeader(profile: UserProfile, onOpenProfile: () -> Unit) {
 @Composable
 private fun WeekSummary(s: HomeState.Ready, modifier: Modifier = Modifier) {
     val form = s.fitness.lastOrNull()?.form?.roundToInt() ?: 0
-    Row(modifier.fillMaxWidth().background(Palette.Surface, MaterialTheme.shapes.large).padding(14.dp)) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .background(Palette.Surface, MaterialTheme.shapes.large)
+            .border(1.dp, Palette.Outline.copy(alpha = 0.6f), MaterialTheme.shapes.large)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         listOf(
-            Triple("Minggu ini", s.weekly.thisWeek.distanceKm, "km"),
-            Triple("Naik", s.weekly.thisWeek.elevationM, "m"),
-            Triple("Form", form.toDouble(), ""),
+            Triple("MINGGU INI", s.weekly.thisWeek.distanceKm, "km"),
+            Triple("NAIK", s.weekly.thisWeek.elevationM, "m"),
+            Triple("FORM", form.toDouble(), ""),
         ).forEach { (label, v, unit) ->
             Column(Modifier.weight(1f)) {
                 Text(label, style = MetricText.Label, color = Palette.TextMuted)
+                Spacer(Modifier.height(2.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
                     AnimatedNumber(
                         v,
-                        format = { x -> if (label == "Form") (if (x >= 0.5) "+" else "") + x.roundToInt() else x.roundToInt().toString() },
+                        format = { x -> if (label == "FORM") (if (x >= 0.5) "+" else "") + x.roundToInt() else x.roundToInt().toString() },
                         style = MetricText.Medium,
-                        color = Palette.Text,
+                        color = if (label == "FORM" && s.feed.isEmpty()) Palette.TextMuted else Palette.Text,
                     )
                     if (unit.isNotEmpty()) {
                         Spacer(Modifier.width(3.dp))
-                        Text(unit, style = MetricText.Label, color = Palette.TextMuted, modifier = Modifier.padding(bottom = 4.dp))
+                        Text(unit, style = MetricText.Label, color = Palette.TextMuted, modifier = Modifier.padding(bottom = 5.dp))
                     }
                 }
             }
@@ -186,74 +200,113 @@ private fun WeekSummary(s: HomeState.Ready, modifier: Modifier = Modifier) {
 }
 
 /**
- * Training at a glance: this week's load per day (today outlined) against last week's total, then today's
- * planned session with its interval profile and a button that sets it up on the record screen.
+ * Training at a glance: this week's load per day in smooth gradient capsules, then today's
+ * planned session with its zone-colored interval profile.
  */
 @Composable
 private fun TrainingCard(load: WeekLoad?, today: TodaySession?, onRide: (TodaySession) -> Unit, onOpenTraining: () -> Unit, modifier: Modifier = Modifier) {
     val accent = Palette.Accent
     val track = Palette.SurfaceHigh
-    val outline = Palette.Text
+    val muted = Palette.TextMuted
     val reduce = reduceMotion()
     val grow = remember { Animatable(if (reduce) 1f else 0f) }
     LaunchedEffect(Unit) { if (!reduce) grow.animateTo(1f, tween(Motion.LONG + 200)) }
-    Column(modifier.fillMaxWidth().background(Palette.Surface, MaterialTheme.shapes.large).padding(14.dp)) {
+    Column(
+        modifier
+            .fillMaxWidth()
+            .background(Palette.Surface, MaterialTheme.shapes.large)
+            .border(1.dp, Palette.Outline.copy(alpha = 0.6f), MaterialTheme.shapes.large)
+            .padding(16.dp),
+    ) {
         if (load != null) {
             Row(verticalAlignment = Alignment.Bottom) {
-                Text("Beban latihan minggu ini", style = MetricText.Label, color = Palette.TextMuted, modifier = Modifier.weight(1f))
+                Text("BEBAN LATIHAN MINGGU INI", style = MetricText.Label, color = Palette.TextMuted, modifier = Modifier.weight(1f))
                 Text(load.total.roundToInt().toString(), style = MetricText.Medium, color = Palette.Text)
                 Spacer(Modifier.width(4.dp))
-                Text("TRIMP", style = MetricText.Label, color = Palette.TextMuted, modifier = Modifier.padding(bottom = 4.dp))
+                Text("TRIMP", style = MetricText.Label, color = Palette.Accent, modifier = Modifier.padding(bottom = 5.dp))
             }
             val vs = when {
                 load.lastWeek <= 0.0 -> "Minggu lalu belum ada latihan tercatat"
                 else -> "Minggu lalu ${load.lastWeek.roundToInt()} · ${((load.total / load.lastWeek) * 100).roundToInt()}% dari minggu lalu"
             }
             Text(vs, style = MaterialTheme.typography.bodySmall, color = Palette.TextMuted)
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(14.dp))
             val top = (load.days.maxOrNull() ?: 0.0).coerceAtLeast(1.0)
-            Canvas(Modifier.fillMaxWidth().height(64.dp).semantics { contentDescription = "Beban latihan per hari minggu ini, total ${load.total.roundToInt()}" }) {
-                val gap = 6.dp.toPx()
-                val w = (size.width - gap * 6) / 7
+            Canvas(Modifier.fillMaxWidth().height(72.dp).semantics { contentDescription = "Beban latihan per hari minggu ini, total ${load.total.roundToInt()}" }) {
+                val gap = 10.dp.toPx()
+                val slotW = (size.width - gap * 6) / 7f
+                val barW = minOf(slotW, 22.dp.toPx())
+                val radius = CornerRadius(barW / 2f, barW / 2f)
                 load.days.forEachIndexed { i, v ->
-                    val h = (size.height * (v / top).toFloat() * grow.value).coerceAtLeast(4.dp.toPx())
-                    val x = i * (w + gap)
-                    drawRoundRect(if (v > 0) accent else track, Offset(x, size.height - h), Size(w, h), CornerRadius(4.dp.toPx()))
-                    if (i == load.todayIndex) drawRoundRect(outline, Offset(x - 2.dp.toPx(), size.height - h - 2.dp.toPx()), Size(w + 4.dp.toPx(), h + 4.dp.toPx()), CornerRadius(6.dp.toPx()), style = Stroke(1.5.dp.toPx()))
+                    val x = i * (slotW + gap) + (slotW - barW) / 2f
+                    // Soft background capsule track for every day
+                    drawRoundRect(
+                        color = if (i == load.todayIndex) accent.copy(alpha = 0.12f) else track.copy(alpha = 0.7f),
+                        topLeft = Offset(x, 0f),
+                        size = Size(barW, size.height),
+                        cornerRadius = radius,
+                    )
+                    if (v > 0.0) {
+                        val h = (size.height * (v / top).toFloat() * grow.value).coerceAtLeast(barW)
+                        val y = size.height - h
+                        drawRoundRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(accent, accent.copy(alpha = 0.55f)),
+                                startY = y,
+                                endY = size.height,
+                            ),
+                            topLeft = Offset(x, y),
+                            size = Size(barW, h),
+                            cornerRadius = radius,
+                        )
+                    } else if (i == load.todayIndex) {
+                        // Subtle anchor dot for today when no load yet
+                        drawCircle(accent, 3.5.dp.toPx(), Offset(x + barW / 2f, size.height - 8.dp.toPx()))
+                    } else {
+                        drawCircle(muted.copy(alpha = 0.25f), 2.5.dp.toPx(), Offset(x + barW / 2f, size.height - 8.dp.toPx()))
+                    }
                 }
             }
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                listOf("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min").forEach { d ->
-                    Text(d, style = MetricText.Label, color = Palette.TextMuted, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                listOf("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min").forEachIndexed { idx, d ->
+                    val isToday = idx == load.todayIndex
+                    Text(
+                        d,
+                        style = MetricText.Label,
+                        color = if (isToday) Palette.Accent else Palette.TextMuted,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
-            HorizontalDivider(color = Palette.Outline, modifier = Modifier.padding(vertical = 12.dp))
+            HorizontalDivider(color = Palette.Outline.copy(alpha = 0.6f), modifier = Modifier.padding(vertical = 14.dp))
         }
         if (today != null) {
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        listOfNotNull("Latihan hari ini", today.phase?.let { "${it.label} minggu ${today.week}" }).joinToString(" · "),
+                        listOfNotNull("LATIHAN HARI INI", today.phase?.let { "${it.label.uppercase()} · M${today.week}" }).joinToString(" · "),
                         style = MetricText.Label,
-                        color = Palette.TextMuted,
+                        color = Palette.Accent,
                     )
+                    Spacer(Modifier.height(2.dp))
                     Text(today.workout.name, style = MaterialTheme.typography.titleMedium)
                 }
                 Text(
                     today.workout.durationS.let { d -> if (d >= 3600) "${d / 3600}j ${(d % 3600) / 60}m" else "${d / 60}m" },
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MetricText.Label,
                     color = Palette.Text,
-                    modifier = Modifier.background(Palette.SurfaceHigh, MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.background(Palette.SurfaceHigh, RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 4.dp),
                 )
             }
-            IntensityStrip(today.workout, Modifier.fillMaxWidth().height(44.dp).padding(vertical = 8.dp))
+            IntensityStrip(today.workout, Modifier.fillMaxWidth().height(48.dp).padding(vertical = 10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (today.done) {
                     Text("Sudah dikayuh hari ini", style = MaterialTheme.typography.bodyMedium, color = Palette.Success, modifier = Modifier.padding(vertical = 12.dp))
                 } else {
-                    Button(onClick = { onRide(today) }) { Text("Kayuh sesi ini") }
+                    Button(onClick = { onRide(today) }, shape = MaterialTheme.shapes.medium) { Text("Kayuh sesi ini") }
                 }
-                OutlinedButton(onClick = onOpenTraining) { Text("Rencana") }
+                OutlinedButton(onClick = onOpenTraining, shape = MaterialTheme.shapes.medium) { Text("Rencana") }
             }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -310,7 +363,38 @@ private fun FormCard(points: List<TrainingLoad.FitnessPoint>, estimated: Boolean
                         modifier = Modifier.padding(top = 8.dp),
                     )
                 } else {
-                    Text("Grafik muncul setelah aktivitas pertama tersimpan.", style = MaterialTheme.typography.bodySmall, color = Palette.TextMuted)
+                    val waveColor = Palette.Info
+                    val mutedLine = Palette.Outline.copy(alpha = 0.6f)
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .background(Palette.SurfaceHigh.copy(alpha = 0.45f), MaterialTheme.shapes.medium)
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                    ) {
+                        Canvas(Modifier.fillMaxWidth().height(48.dp)) {
+                            val w = size.width
+                            val h = size.height
+                            drawLine(
+                                mutedLine,
+                                Offset(0f, h * 0.65f),
+                                Offset(w, h * 0.65f),
+                                strokeWidth = 1.dp.toPx(),
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f)),
+                            )
+                            val wave = Path().apply {
+                                moveTo(0f, h * 0.72f)
+                                cubicTo(w * 0.22f, h * 0.68f, w * 0.35f, h * 0.32f, w * 0.55f, h * 0.45f)
+                                cubicTo(w * 0.72f, h * 0.56f, w * 0.85f, h * 0.22f, w, h * 0.30f)
+                            }
+                            drawPath(
+                                wave,
+                                waveColor.copy(alpha = 0.35f),
+                                style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f))),
+                            )
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text("Grafik tren 42 hari muncul setelah aktivitas pertama tersimpan.", style = MaterialTheme.typography.bodySmall, color = Palette.TextMuted)
+                    }
                 }
                 if (estimated) {
                     Spacer(Modifier.height(6.dp))

@@ -1,13 +1,17 @@
 package id.web.agentvaedah.strideway.ui.coach
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import id.web.agentvaedah.strideway.core.coach.CoachAttachment
 import id.web.agentvaedah.strideway.core.coach.CoachContext
+import id.web.agentvaedah.strideway.core.coach.CoachFileAnalyzer
 import id.web.agentvaedah.strideway.core.coach.RecentActivity
 import id.web.agentvaedah.strideway.core.physio.TrainingLoad
 import id.web.agentvaedah.strideway.data.db.ChatMessageEntity
 import id.web.agentvaedah.strideway.data.db.ChatRole
+import id.web.agentvaedah.strideway.data.files.TrackFileIo
 import id.web.agentvaedah.strideway.data.prefs.SettingsRepository
 import id.web.agentvaedah.strideway.data.remote.llm.LlmClient
 import id.web.agentvaedah.strideway.data.remote.llm.LlmMessage
@@ -17,6 +21,7 @@ import id.web.agentvaedah.strideway.data.remote.llm.LlmSettings
 import id.web.agentvaedah.strideway.data.repo.ActivityRepository
 import id.web.agentvaedah.strideway.data.repo.ChatRepository
 import id.web.agentvaedah.strideway.data.security.SecureKeyStore
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -26,6 +31,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -38,6 +44,7 @@ class CoachViewModel @Inject constructor(
     private val llm: LlmClient,
     private val settings: SettingsRepository,
     private val activities: ActivityRepository,
+    private val files: TrackFileIo,
     keys: SecureKeyStore,
 ) : ViewModel() {
     val messages: StateFlow<List<ChatMessageEntity>?> = chat.messages().stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -50,35 +57,102 @@ class CoachViewModel @Inject constructor(
     private val _sending = MutableStateFlow(false)
     val sending: StateFlow<Boolean> = _sending.asStateFlow()
 
-    fun send(text: String) {
-        val trimmed = text.trim()
-        if (trimmed.isEmpty() || _sending.value) return
-        _sending.value = true
+    private val _attachment = MutableStateFlow<CoachAttachment?>(null)
+    val attachment: StateFlow<CoachAttachment?> = _attachment.asStateFlow()
+
+    private val _parsingFile = MutableStateFlow(false)
+    val parsingFile: StateFlow<Boolean> = _parsingFile.asStateFlow()
+
+    private val _attachError = MutableStateFlow<String?>(null)
+    val attachError: StateFlow<String?> = _attachError.asStateFlow()
+
+    /** Keeps recently uploaded file data available to follow-up turns in this session. */
+    private val uploadedContexts = ArrayList<String>()
+
+    fun attachFile(uri: Uri) {
+        if (_parsingFile.value) return
+        _parsingFile.value = true
+        _attachError.value = null
         viewModelScope.launch {
             try {
-                ask(trimmed)
+                val raw = files.readRaw(uri).getOrElse {
+                    _attachError.value = it.message ?: "File tidak bisa dibaca."
+                    return@launch
+                }
+                val athlete = settings.athlete.first()
+                val parsed = withContext(Dispatchers.Default) {
+                    CoachFileAnalyzer.analyze(raw.first, raw.second, athlete)
+                }
+                parsed.onSuccess { _attachment.value = it }
+                    .onFailure { _attachError.value = it.message ?: "File tidak bisa dianalisis." }
+            } finally {
+                _parsingFile.value = false
+            }
+        }
+    }
+
+    fun clearAttachment() {
+        _attachment.value = null
+    }
+
+    fun clearAttachError() {
+        _attachError.value = null
+    }
+
+    fun send(text: String) {
+        val trimmed = text.trim()
+        val pending = _attachment.value
+        if ((trimmed.isEmpty() && pending == null) || _sending.value) return
+        _sending.value = true
+        _attachment.value = null
+        viewModelScope.launch {
+            try {
+                ask(trimmed, pending)
             } finally {
                 _sending.value = false
             }
         }
     }
 
-    private suspend fun ask(trimmed: String) {
+    private suspend fun ask(trimmed: String, pending: CoachAttachment?) {
         val cfg = settings.llm.first()
-        chat.add(ChatRole.USER, trimmed, null)
+        val displayMsg = if (pending != null) {
+            val prompt = trimmed.ifEmpty { "Analisis data dari file ${pending.fileName} ini dan berikan evaluasi serta saran latihan." }
+            "[File: ${pending.fileName} · ${pending.summaryLabel}]\n$prompt"
+        } else {
+            trimmed
+        }
+        if (pending != null) {
+            uploadedContexts += pending.promptContext
+            if (uploadedContexts.size > 3) uploadedContexts.removeAt(0)
+        }
+        chat.add(ChatRole.USER, displayMsg, null)
         // Error bubbles are shown to the athlete but never sent back to the model.
         val history = chat.history()
             .filter { it.role == ChatRole.USER || it.role == ChatRole.ASSISTANT }
             .takeLast(HISTORY_LIMIT)
             .map { LlmMessage(it.role, it.content) }
             .dropWhile { it.role != ChatRole.USER }
-        when (val r = llm.complete(cfg, systemPrompt(), history)) {
+        val system = buildString {
+            append(systemPrompt())
+            if (uploadedContexts.isNotEmpty()) {
+                appendLine()
+                appendLine()
+                appendLine("Data file yang diunggah pengguna untuk dianalisis:")
+                uploadedContexts.forEach { appendLine(it) }
+            }
+        }
+        when (val r = llm.complete(cfg, system, history)) {
             is LlmResult.Ok -> chat.add(ChatRole.ASSISTANT, r.text, providerLabel(cfg))
             is LlmResult.Failure -> chat.add(ChatRole.ERROR, r.reason, providerLabel(cfg))
         }
     }
 
-    fun clear() = viewModelScope.launch { chat.clear() }
+    fun clear() = viewModelScope.launch {
+        uploadedContexts.clear()
+        _attachment.value = null
+        chat.clear()
+    }
 
     private fun providerLabel(cfg: LlmSettings) = "${cfg.provider.label} · ${cfg.model}"
 

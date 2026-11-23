@@ -1,6 +1,9 @@
 package id.web.agentvaedah.strideway.ui.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,13 +18,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Tab
-import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.Button
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.semantics.Role
 import id.web.agentvaedah.strideway.core.format.Format
 import id.web.agentvaedah.strideway.core.gear.GearLevel
 import androidx.compose.runtime.Composable
@@ -50,20 +53,34 @@ import kotlin.math.roundToInt
 private val shortDate = DateTimeFormatter.ofPattern("d MMM", Locale.forLanguageTag("id-ID"))
 private val pages = listOf("Snapshot", "Progres", "Sepeda", "Kalender", "Analisis HR", "Streak")
 
-/** Swipeable insight cards; the tab row doubles as a page indicator and lets the user jump directly. */
+/** Swipeable insight cards; pill chips double as a page indicator and let the user jump directly. */
 @Composable
 internal fun InsightsCarousel(s: HomeState.Ready, vm: HomeViewModel, onOpenGarage: () -> Unit) {
     val pager = rememberPagerState { pages.size }
     val scope = rememberCoroutineScope()
-    Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-        ScrollableTabRow(
-            selectedTabIndex = pager.currentPage,
-            edgePadding = 16.dp,
-            containerColor = Palette.Bg,
-            divider = {},
+    Column(Modifier.fillMaxWidth().padding(top = 14.dp)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             pages.forEachIndexed { i, title ->
-                Tab(selected = pager.currentPage == i, onClick = { scope.launch { pager.animateScrollToPage(i) } }, text = { Text(title) })
+                val active = pager.currentPage == i
+                Box(
+                    Modifier
+                        .background(if (active) Palette.Accent else Palette.Surface, CircleShape)
+                        .border(1.dp, if (active) Palette.Accent else Palette.Outline.copy(alpha = 0.65f), CircleShape)
+                        .clickable(role = Role.Tab) { scope.launch { pager.animateScrollToPage(i) } }
+                        .padding(horizontal = 14.dp, vertical = 7.dp),
+                ) {
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (active) Palette.OnAccent else Palette.TextMuted,
+                    )
+                }
             }
         }
         HorizontalPager(
@@ -96,7 +113,8 @@ private fun Card(content: @Composable () -> Unit) {
             .heightIn(min = 280.dp)
             .padding(top = 8.dp)
             .background(Palette.Surface, MaterialTheme.shapes.large)
-            .padding(12.dp),
+            .border(1.dp, Palette.Outline.copy(alpha = 0.6f), MaterialTheme.shapes.large)
+            .padding(16.dp),
     ) { content() }
 }
 

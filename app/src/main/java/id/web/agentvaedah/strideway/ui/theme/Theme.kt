@@ -43,13 +43,13 @@ private fun scheme(c: StridewayColors): ColorScheme {
 private val DarkScheme = scheme(DarkColors)
 private val LightScheme = scheme(LightColors)
 
-// Small radius for data surfaces, a larger one only for sheets: cards read as panels, not pills.
+// Fresh, crisp radii: modern athletic cards with clean geometry and generous sheet rounding.
 private val StridewayShapes = Shapes(
-    extraSmall = RoundedCornerShape(4.dp),
-    small = RoundedCornerShape(6.dp),
-    medium = RoundedCornerShape(8.dp),
-    large = RoundedCornerShape(12.dp),
-    extraLarge = RoundedCornerShape(20.dp),
+    extraSmall = RoundedCornerShape(6.dp),
+    small = RoundedCornerShape(10.dp),
+    medium = RoundedCornerShape(14.dp),
+    large = RoundedCornerShape(18.dp),
+    extraLarge = RoundedCornerShape(24.dp),
 )
 
 @Composable
