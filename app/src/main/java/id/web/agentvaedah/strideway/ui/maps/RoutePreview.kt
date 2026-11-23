@@ -104,7 +104,7 @@ fun RoutePreview(
             val here = remember(fly, progress) { fly.at(progress.toDouble()) }
             LaunchedEffect(style, here, trackColor, routeColor) {
                 val st = style ?: return@LaunchedEffect
-                MapLayers.previewProgress(st, "preview-route", progress, trackColor, routeColor)
+                MapLayers.previewProgress(st, "preview-route", fly.lineProgressAt(here.distanceM).toFloat(), trackColor, routeColor)
                 MapLayers.setHeadingPuck(st, "preview-puck", here.position, here.bearing.toFloat(), trackColor)
             }
 

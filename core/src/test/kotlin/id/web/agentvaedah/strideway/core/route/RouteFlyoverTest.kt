@@ -29,6 +29,16 @@ class RouteFlyoverTest {
     }
 
     @Test
+    fun `line gradient follows the puck in Mercator rather than ground metres`() {
+        val fly = RouteFlyover(listOf(LatLon(0.0, 0.0), LatLon(30.0, 0.0), LatLon(60.0, 0.0)))
+        // y(30°)/y(60°) and y(45°)/y(60°) along this meridian.
+        assertEquals(0.41710, fly.lineProgressAt(fly.at(0.5).distanceM), 0.0001)
+        assertEquals(0.66925, fly.lineProgressAt(fly.at(0.75).distanceM), 0.0001)
+        assertEquals(0.0, fly.lineProgressAt(0.0))
+        assertEquals(1.0, fly.lineProgressAt(fly.lengthM))
+    }
+
+    @Test
     fun `bearing looks ahead along a straight road`() {
         val f = RouteFlyover(listOf(start, east(5_000.0)))
         assertEquals(90.0, f.at(0.3).bearing, 0.5)
