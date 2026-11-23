@@ -52,11 +52,26 @@ class RouteFlyoverTest {
     }
 
     @Test
-    fun `duration grows with distance and stays within bounds`() {
-        assertEquals(20_000L, RouteFlyover(listOf(start, east(500.0))).durationMs)
-        assertEquals(45_000L, RouteFlyover(listOf(start, east(400_000.0))).durationMs)
-        val mid = RouteFlyover(listOf(start, east(30_000.0))).durationMs
-        assertTrue(mid in 20_001L..44_999L)
+    fun `one times keeps a stable speed even on long routes`() {
+        assertEquals(20_000L, RouteFlyover(listOf(start, east(100.0))).durationMs)
+        for (length in listOf(500.0, 30_000.0, 400_000.0)) {
+            val f = RouteFlyover(listOf(start, east(length)))
+            assertEquals(15.0, f.lengthM / (f.durationMs / 1000.0), .01)
+        }
+    }
+
+    @Test
+    fun `arrows advance on the route and face its direction through bends`() {
+        val corner = east(200.0)
+        val fly = RouteFlyover(listOf(start, corner, Geo.destination(corner, 0.0, 200.0)))
+        val first = fly.arrows(0.0)
+        val next = fly.arrows(1.0)
+        assertTrue(first.isNotEmpty())
+        assertEquals(first.size, next.size)
+        assertTrue(first.zip(next).all { (a, b) -> b.distanceM > a.distanceM })
+        assertEquals(90.0, next.first().bearing, 1.0)
+        assertTrue(next.last().bearing < 1.0 || next.last().bearing > 359.0)
+        assertTrue(RouteFlyover(listOf(start, start)).arrows(10.0).isEmpty())
     }
 
     @Test

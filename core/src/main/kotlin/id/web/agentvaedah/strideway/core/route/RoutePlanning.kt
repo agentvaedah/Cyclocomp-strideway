@@ -2,6 +2,7 @@ package id.web.agentvaedah.strideway.core.route
 
 import id.web.agentvaedah.strideway.core.geo.Geo
 import id.web.agentvaedah.strideway.core.model.LatLon
+import id.web.agentvaedah.strideway.core.model.TrackPoint
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -124,7 +125,7 @@ object RouteOptions {
  */
 data class DrawRouteDraft(
     val waypoints: List<LatLon> = emptyList(),
-    private val segments: Map<Pair<LatLon, LatLon>, List<LatLon>> = emptyMap(),
+    private val segments: Map<Pair<LatLon, LatLon>, List<TrackPoint>> = emptyMap(),
 ) {
     fun add(p: LatLon) = copy(waypoints = waypoints + p)
 
@@ -137,18 +138,24 @@ data class DrawRouteDraft(
 
     fun clear() = DrawRouteDraft()
 
-    fun withSegment(a: LatLon, b: LatLon, path: List<LatLon>) = copy(segments = segments + ((a to b) to path))
+    fun withSegment(a: LatLon, b: LatLon, path: List<TrackPoint>) = copy(segments = segments + ((a to b) to path))
 
     fun missingSegments(): List<Pair<LatLon, LatLon>> = waypoints.zipWithNext().filter { it !in segments }
 
     /** Joined path; a segment not fetched yet is drawn as a straight line. */
-    fun path(): List<LatLon> {
-        if (waypoints.size < 2) return waypoints
-        val out = ArrayList<LatLon>()
+    fun track(): List<TrackPoint> {
+        fun bare(p: LatLon) = TrackPoint(p.lat, p.lon)
+        if (waypoints.size < 2) return waypoints.map(::bare)
+        val out = ArrayList<TrackPoint>()
         for (pair in waypoints.zipWithNext()) {
-            val seg = segments[pair] ?: listOf(pair.first, pair.second)
-            if (out.isNotEmpty() && out.last() == seg.first()) out.addAll(seg.drop(1)) else out.addAll(seg)
+            val seg = segments[pair].orEmpty().ifEmpty { listOf(bare(pair.first), bare(pair.second)) }
+            if (out.isNotEmpty() && out.last().latLon == seg.first().latLon) {
+                if (out.last().ele == null) out[out.lastIndex] = seg.first()
+                out.addAll(seg.drop(1))
+            } else out.addAll(seg)
         }
         return out
     }
+
+    fun path(): List<LatLon> = track().map { it.latLon }
 }

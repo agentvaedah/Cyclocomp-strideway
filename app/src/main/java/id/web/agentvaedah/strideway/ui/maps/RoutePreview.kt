@@ -1,6 +1,8 @@
 package id.web.agentvaedah.strideway.ui.maps
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,6 +50,7 @@ import id.web.agentvaedah.strideway.core.route.RouteFlyover
 import id.web.agentvaedah.strideway.data.prefs.MapBase
 import id.web.agentvaedah.strideway.ui.components.MapHost
 import id.web.agentvaedah.strideway.ui.components.MapLayers
+import id.web.agentvaedah.strideway.ui.components.RouteArrows
 import id.web.agentvaedah.strideway.ui.components.toLatLng
 import id.web.agentvaedah.strideway.ui.record.icon
 import id.web.agentvaedah.strideway.ui.theme.MetricText
@@ -93,43 +96,48 @@ fun RoutePreview(
                 onStyleLoaded = { _, st -> style = st },
             )
 
-            LaunchedEffect(style, route) {
+            LaunchedEffect(style, route, routeColor) {
                 val st = style ?: return@LaunchedEffect
-                MapLayers.setLine(st, "preview-route", route, routeColor, 5f, lineStyle = MapLayers.LineStyle.ROUTE)
+                MapLayers.setLine(st, "preview-route", route, routeColor, 5f, lineStyle = MapLayers.LineStyle.PREVIEW)
             }
-            LaunchedEffect(style, progress) {
+            RouteArrows(style, "preview-route", route, routeColor, animate = playing)
+            val here = remember(fly, progress) { fly.at(progress.toDouble()) }
+            LaunchedEffect(style, here, trackColor, routeColor) {
                 val st = style ?: return@LaunchedEffect
-                val f = fly.at(progress.toDouble())
-                MapLayers.setLine(st, "preview-done", fly.prefix(f.distanceM), trackColor, 6f, lineStyle = MapLayers.LineStyle.TRACK)
-                MapLayers.setHeadingPuck(st, "preview-puck", f.position, f.bearing.toFloat(), trackColor)
+                MapLayers.previewProgress(st, "preview-route", progress, trackColor, routeColor)
+                MapLayers.setHeadingPuck(st, "preview-puck", here.position, here.bearing.toFloat(), trackColor)
             }
 
-            // The camera follows every frame while playing; moveCamera per frame is smoother than chained animations.
-            LaunchedEffect(map, playing, speed) {
+            LaunchedEffect(map, style, playing, speed, fly) {
                 val m = map ?: return@LaunchedEffect
-                if (!playing) return@LaunchedEffect
+                if (!playing || style == null) return@LaunchedEffect
                 if (progress >= 1f) progress = 0f
+                var fraction = progress.toDouble()
+                var bearing = if (fraction == 0.0) fly.at(0.0).bearing else m.cameraPosition.bearing
                 var last = withFrameNanos { it }
-                while (playing && progress < 1f) {
+                var lastUi = last
+                while (fraction < 1.0) {
                     val now = withFrameNanos { it }
-                    val dt = (now - last) / 1_000_000f
+                    val dt = ((now - last) / 1_000_000.0).coerceIn(0.0, 64.0)
                     last = now
-                    progress = (progress + dt * speed / fly.durationMs).coerceAtMost(1f)
-                    val f = fly.at(progress.toDouble())
+                    fraction = (fraction + dt * speed / fly.durationMs).coerceAtMost(1.0)
+                    val f = fly.at(fraction)
+                    val turn = (f.bearing - bearing + 540.0) % 360.0 - 180.0
+                    bearing = (bearing + turn * (1.0 - kotlin.math.exp(-dt / 240.0)) + 360.0) % 360.0
                     m.moveCamera(
                         CameraUpdateFactory.newCameraPosition(
-                            CameraPosition.Builder().target(f.position.toLatLng()).zoom(15.8).tilt(60.0).bearing(f.bearing).build(),
+                            CameraPosition.Builder().target(f.position.toLatLng()).zoom(15.8).tilt(60.0).bearing(bearing).build(),
                         ),
                     )
+                    if (now - lastUi >= 80_000_000L || fraction >= 1.0) {
+                        progress = fraction.toFloat()
+                        lastUi = now
+                    }
                 }
-                if (progress >= 1f) {
-                    playing = false
-                    m.animateCamera(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder().target(m.cameraPosition.target).tilt(0.0).bearing(0.0).zoom(m.cameraPosition.zoom).build()), 600)
-                    MapLayers.fit(m, route, paddingPx = 120)
-                }
+                playing = false
+                MapLayers.fit(m, route, paddingPx = 120, northUp = true)
             }
 
-            val here = fly.at(progress.toDouble())
             val next = CueSheet.next(cues, here.distanceM)
             Column(Modifier.align(Alignment.TopStart).fillMaxWidth().statusBarsPadding().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -191,8 +199,11 @@ fun RoutePreview(
                             contentDescription = if (playing) "Jeda" else "Putar",
                         )
                     }
-                    listOf(1f, 2f, 4f).forEach { s -> FilterChip(speed == s, { speed = s }, { Text("${s.toInt()}×") }) }
-                    Spacer(Modifier.weight(1f))
+                    Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(.5f, 1f, 2f, 4f).forEach { s ->
+                            FilterChip(speed == s, { speed = s }, { Text(if (s == .5f) "0,5×" else "${s.toInt()}×") })
+                        }
+                    }
                     if (onNavigate != null) TextButton(onClick = onNavigate) { Text("Navigasi") }
                 }
             }

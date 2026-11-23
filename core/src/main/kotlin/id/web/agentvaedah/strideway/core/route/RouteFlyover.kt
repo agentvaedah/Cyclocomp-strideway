@@ -17,8 +17,8 @@ class RouteFlyover(private val route: List<LatLon>, private val lookAheadM: Doub
 
     val lengthM: Double get() = cum.lastOrNull() ?: 0.0
 
-    /** 20 seconds up to 2 km, then about a second per extra two kilometres, capped at 45 seconds. */
-    val durationMs: Long get() = (20_000 + (lengthM - 2_000.0).coerceAtLeast(0.0) / 2_000.0 * 1_000).toLong().coerceIn(20_000L, 45_000L)
+    /** At 1× the camera covers at most 15 metres per second, even on all-day routes. */
+    val durationMs: Long get() = (lengthM / 15.0 * 1_000).toLong().coerceAtLeast(20_000L)
 
     fun at(progress: Double): FlyFrame {
         require(route.size >= 2) { "A route needs two points" }
@@ -57,14 +57,15 @@ class RouteFlyover(private val route: List<LatLon>, private val lookAheadM: Doub
         return LatLon(a.lat + (b.lat - a.lat) * f, a.lon + (b.lon - a.lon) * f)
     }
 
-    /** The route up to [d] metres, for drawing the part already flown over. */
-    fun prefix(d: Double): List<LatLon> {
-        if (d <= 0) return listOf(route.first())
-        val out = ArrayList<LatLon>()
-        for (i in route.indices) {
-            if (cum[i] < d) out += route[i] else break
+    /** Equally spaced arrows travel on the geometry rather than sliding straight through bends. */
+    fun arrows(elapsedSeconds: Double): List<FlyFrame> {
+        if (lengthM < 1.0) return emptyList()
+        val count = kotlin.math.ceil(lengthM / 140.0).toInt().coerceIn(1, 48)
+        val spacing = lengthM / count
+        val phase = (spacing * 0.25 + elapsedSeconds * minOf(14.0, spacing / 5)) % spacing
+        return List(count) { i ->
+            val d = i * spacing + phase
+            FlyFrame(pointAt(d), Geo.bearingDeg(pointAt((d - 1).coerceAtLeast(0.0)), pointAt(d + 1)), d)
         }
-        out += pointAt(d)
-        return out
     }
 }

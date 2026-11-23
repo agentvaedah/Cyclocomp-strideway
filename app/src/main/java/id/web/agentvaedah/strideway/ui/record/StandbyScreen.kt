@@ -48,6 +48,7 @@ import id.web.agentvaedah.strideway.core.model.LatLon
 import id.web.agentvaedah.strideway.core.model.Sport
 import id.web.agentvaedah.strideway.ui.components.MapHost
 import id.web.agentvaedah.strideway.ui.components.MapLayers
+import id.web.agentvaedah.strideway.ui.components.RouteArrows
 import id.web.agentvaedah.strideway.ui.components.toLatLng
 import id.web.agentvaedah.strideway.ui.maps.RoutePreview
 import id.web.agentvaedah.strideway.ui.theme.Palette
@@ -111,6 +112,7 @@ fun StandbyScreen(vm: RecordViewModel) {
                 here != null -> m.moveCamera(CameraUpdateFactory.newLatLngZoom(here.toLatLng(), 15.0))
             }
         }
+        RouteArrows(style, "standby-route", navRoute?.points.orEmpty(), routeColor)
 
         IconButton(
             onClick = { here?.let { map?.animateCamera(CameraUpdateFactory.newLatLngZoom(it.toLatLng(), 15.0)) } },

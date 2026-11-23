@@ -1,5 +1,7 @@
 package id.web.agentvaedah.strideway.service
 
+import id.web.agentvaedah.strideway.core.route.ElevationSample
+
 import android.content.Context
 import android.content.Intent
 import android.hardware.GeomagneticField
@@ -62,7 +64,7 @@ sealed interface RecordingState {
         val path: List<LatLon>,
         val position: LatLon?,
         val headingDeg: Float?,
-        val elevationProfile: List<Float>,
+        val elevationProfile: List<ElevationSample>,
         val gpsFix: GpsFix,
         val sensors: List<SensorStatus>,
         /** From a BLE Environmental Sensing device; null without one. */
@@ -117,7 +119,7 @@ class RecordingController @Inject constructor(
         val dr: DeadReckoning,
     ) {
         val path = ArrayList<LatLon>()
-        val profile = ArrayList<Float>()
+        val profile = ArrayList<ElevationSample>()
         val buffer = ArrayList<TrackPointEntity>()
         var position: LatLon? = null
         var heading: Float? = null
@@ -130,6 +132,7 @@ class RecordingController @Inject constructor(
         var lastAltitude: Double? = null
         var baroOffset: Double? = null
         var lastProfileDistance = 0.0
+        var profileStepM = PROFILE_STEP_M
         var temperatureC: Double? = null
         var pressureHpa: Double? = null
         var humidityPct: Double? = null
@@ -287,10 +290,16 @@ class RecordingController @Inject constructor(
                 interpolated = interpolated,
             )
             val altitude = m.altitudeM
-            if (altitude != null && m.distanceM - ses.lastProfileDistance >= PROFILE_STEP_M) {
+            if (ses.profile.isEmpty() || m.distanceM - ses.lastProfileDistance >= ses.profileStepM) {
+                // Keep the start of long rides instead of dropping the oldest part of the chart.
+                if (ses.profile.size >= PROFILE_MAX) {
+                    val retained = ses.profile.filterIndexed { index, _ -> index % 2 == 0 }
+                    ses.profile.clear()
+                    ses.profile.addAll(retained)
+                    ses.profileStepM *= 2
+                }
                 ses.lastProfileDistance = m.distanceM
-                ses.profile += altitude.toFloat()
-                if (ses.profile.size > PROFILE_MAX) ses.profile.removeAt(0)
+                ses.profile += ElevationSample(m.distanceM, altitude?.takeIf { it.isFinite() })
             }
         }
     }
@@ -400,4 +409,3 @@ class RecordingController @Inject constructor(
         const val LIVE_PATH_MAX = 2_000
     }
 }
-

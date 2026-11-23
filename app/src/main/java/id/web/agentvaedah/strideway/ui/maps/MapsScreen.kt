@@ -59,15 +59,19 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import id.web.agentvaedah.strideway.core.format.Format
 import id.web.agentvaedah.strideway.core.geo.Geo
 import id.web.agentvaedah.strideway.core.model.LatLon
+import id.web.agentvaedah.strideway.core.model.TrackPoint
+import id.web.agentvaedah.strideway.core.route.ElevationProfile
 import id.web.agentvaedah.strideway.core.route.Maneuver
 import id.web.agentvaedah.strideway.data.db.RouteSource
 import id.web.agentvaedah.strideway.data.prefs.MapBase
 import id.web.agentvaedah.strideway.data.prefs.MapOverlay
 import id.web.agentvaedah.strideway.data.prefs.TerrainOverlay
 import id.web.agentvaedah.strideway.ui.components.LocalMapboxToken
+import id.web.agentvaedah.strideway.ui.components.ExploreElevation
 import id.web.agentvaedah.strideway.ui.components.MapCompass
 import id.web.agentvaedah.strideway.ui.components.MapHost
 import id.web.agentvaedah.strideway.ui.components.MapLayers
+import id.web.agentvaedah.strideway.ui.components.RouteArrows
 import id.web.agentvaedah.strideway.ui.components.MapStyles
 import id.web.agentvaedah.strideway.ui.components.toLatLng
 import id.web.agentvaedah.strideway.ui.theme.Palette
@@ -76,7 +80,7 @@ import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
 
-private enum class Sheet { NONE, LAYERS, ROUTES, AI }
+private enum class Sheet { NONE, LAYERS, ROUTES, AI, ELEVATION }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -145,12 +149,15 @@ fun MapsScreen(
         }
     }
 
-    val plannedPreview = (plan as? PlanState.Ready)?.let { planner.sorted(it.options).getOrNull(selected) }?.points?.map { it.latLon }
-    val linePoints: List<LatLon> = when {
-        drawing -> draw.path()
-        plannedPreview != null -> plannedPreview
-        else -> draft?.points?.map { it.latLon } ?: shown?.second.orEmpty()
+    val option = (plan as? PlanState.Ready)?.let { planner.sorted(it.options).getOrNull(selected) }
+    val routeTrack = remember(drawing, draw, planOpen, option, draft, shown) {
+        when {
+            drawing -> draw.track()
+            planOpen && option != null -> option.points.map { TrackPoint(it.lat, it.lon, it.ele) }
+            else -> draft?.points ?: shown?.second.orEmpty()
+        }
     }
+    val linePoints = remember(routeTrack) { routeTrack.map { it.latLon } }
 
     Box(Modifier.fillMaxSize()) {
         MapHost(
@@ -194,6 +201,7 @@ fun MapsScreen(
             // While drawing the camera stays where the rider is working; fitting each tap would jump around.
             if (linePoints.size >= 2 && !drawing) map?.let { MapLayers.fit(it, linePoints, bottomPx = bottomInsetPx) }
         }
+        RouteArrows(style, "route", linePoints, routeColor, animate = preview == null && sheet == Sheet.NONE)
         val pinColor = Palette.Info
         LaunchedEffect(style, focus) {
             val st = style ?: return@LaunchedEffect
@@ -228,6 +236,7 @@ fun MapsScreen(
             )
             Spacer(Modifier.height(8.dp))
             TopControls(
+                onElevation = if (linePoints.size >= 2) ({ sheet = Sheet.ELEVATION }) else null,
                 onRoutes = { sheet = Sheet.ROUTES },
                 onPlan = {
                     if (from == null) vm.lastKnown()?.let { planner.setFrom(Endpoint("Lokasi sekarang", it)) }
@@ -341,7 +350,7 @@ fun MapsScreen(
                         distanceM = r.distanceM,
                         gainM = r.elevationGainM,
                         onNavigate = { vm.setNavigation(r.id); onNavigateRoute() },
-                        onPreview = { preview = PreviewRoute(r.name, shown?.second.orEmpty(), shownManeuvers, r.id) },
+                        onPreview = { preview = PreviewRoute(r.name, linePoints, shownManeuvers, r.id) },
                         onClose = vm::hideShown,
                     )
                 }
@@ -371,6 +380,11 @@ fun MapsScreen(
     if (sheet != Sheet.NONE) {
         ModalBottomSheet(onDismissRequest = { sheet = Sheet.NONE }, containerColor = Palette.Surface) {
             when (sheet) {
+                Sheet.ELEVATION -> Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Profil elevasi", style = MaterialTheme.typography.titleLarge)
+                    Text("Ketinggian sepanjang rute", style = MaterialTheme.typography.bodyMedium, color = Palette.TextMuted)
+                    ExploreElevation(remember(routeTrack) { ElevationProfile.fromTrack(routeTrack) })
+                }
                 Sheet.LAYERS -> MapLayersSheet(base, overlays, overlay, { vm.setBase(it) }, planner::toggleOverlay, vm::setOverlay)
                 Sheet.ROUTES -> RoutesSheet(
                     vm,
@@ -399,8 +413,9 @@ fun MapsScreen(
 }
 
 @Composable
-private fun TopControls(onRoutes: () -> Unit, onPlan: () -> Unit, onImport: () -> Unit, onAi: () -> Unit) {
+private fun TopControls(onElevation: (() -> Unit)?, onRoutes: () -> Unit, onPlan: () -> Unit, onImport: () -> Unit, onAi: () -> Unit) {
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        onElevation?.let { MapButton("Profil elevasi", it) }
         MapButton("Rute", onRoutes)
         MapButton("Rencana rute", onPlan)
         MapButton("Impor", onImport)

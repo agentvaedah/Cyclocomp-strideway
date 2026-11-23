@@ -220,11 +220,11 @@ class MapPlannerViewModel @Inject constructor(
             _drawBusy.value = true
             for ((a, b) in missing) {
                 try {
-                    val leg = routing.route(listOf(a, b), profile()).map { LatLon(it.lat, it.lon) }
+                    val leg = routing.route(listOf(a, b), profile())
                     if (a in _draw.value.waypoints && b in _draw.value.waypoints) _draw.value = _draw.value.withSegment(a, b, leg)
                 } catch (e: RoutingException) {
                     _message.value = "Satu ruas tidak bisa mengikuti jalan, digambar lurus"
-                    _draw.value = _draw.value.withSegment(a, b, listOf(a, b))
+                    _draw.value = _draw.value.withSegment(a, b, emptyList())
                 }
             }
             _drawBusy.value = false
@@ -236,10 +236,10 @@ class MapPlannerViewModel @Inject constructor(
     fun clearDraw() { _draw.value = _draw.value.clear() }
 
     fun saveDrawn(name: String, onSaved: (Long) -> Unit) {
-        val path = _draw.value.path()
+        val path = _draw.value.track()
         if (path.size < 2) return
         viewModelScope.launch {
-            val id = routes.save(name, RouteSource.DRAWN, path.map { TrackPoint(it.lat, it.lon) }, null)
+            val id = routes.save(name, RouteSource.DRAWN, path, null)
             _message.value = "Rute gambar disimpan"
             stopDrawing()
             onSaved(id)
