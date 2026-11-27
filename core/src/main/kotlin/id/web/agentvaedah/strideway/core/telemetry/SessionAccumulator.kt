@@ -36,7 +36,9 @@ class SessionAccumulator(
     private var maxSpeedMps = 0.0
     private var gpsAltitude: Double? = null
     private var baroOffset: Double? = null
-    private var baroAltitude: Double? = null
+    private var pressureAltitude: Double? = null
+    private var gainFromPressure: Boolean? = null
+    private var maxAltitude: Double? = null
     private var baroMs = NEVER
     private var gradePct: Double? = null
 
@@ -89,10 +91,18 @@ class SessionAccumulator(
         if (!wasPaused && !paused) {
             distanceM += step
             if (speed > maxSpeedMps) maxSpeedMps = speed
-            currentAltitude(timeMs)?.let { ele ->
+            val pressure = freshPressureAltitude(timeMs)
+            val fromPressure = pressure != null
+            (pressure ?: gpsAltitude)?.let { ele ->
+                if (gainFromPressure != fromPressure) {
+                    gain.reset()
+                    grade.reset()
+                    gainFromPressure = fromPressure
+                }
                 gain.add(distanceM, ele)
                 gradePct = grade.add(distanceM, ele)
             }
+            currentAltitude(timeMs)?.let { maxAltitude = maxOf(maxAltitude ?: it, it) }
         }
         lastPos = pos
         lastPosMs = timeMs
@@ -107,15 +117,10 @@ class SessionAccumulator(
         if (anchor != null) {
             val offset = anchor - altitudeM
             val previous = baroOffset
-            if (previous == null || abs(previous - offset) > BARO_REANCHOR_M) {
-                baroOffset = offset
-                // A change of altitude datum is not a climb.
-                gain.reset()
-                grade.reset()
-                gradePct = null
-            }
+            if (previous == null || abs(previous - offset) > BARO_REANCHOR_M) baroOffset = offset
         }
-        baroAltitude = altitudeM + (baroOffset ?: return)
+        // Relative climb needs only pressure differences; only absolute height needs a GPS datum.
+        pressureAltitude = altitudeM
         baroMs = timeMs
     }
 
@@ -172,7 +177,7 @@ class SessionAccumulator(
             maxSpeedKmh = maxSpeedMps * 3.6,
             altitudeM = currentAltitude(timeMs),
             elevationGainM = gain.gainM,
-            maxElevationM = gain.maxEle,
+            maxElevationM = maxAltitude,
             gradePercent = gradePct,
             heartRate = hrNow,
             avgHeartRate = if (hrCount > 0) (hrSum / hrCount).toInt() else null,
@@ -193,9 +198,9 @@ class SessionAccumulator(
      * inflates climb badly. GPS is the fallback, and it is what anchors the barometer to a real datum.
      */
     private fun currentAltitude(timeMs: Long): Double? =
-        if (hasFreshBarometer(timeMs)) baroAltitude else gpsAltitude
+        freshPressureAltitude(timeMs)?.let { raw -> baroOffset?.plus(raw) } ?: gpsAltitude
 
-    private fun hasFreshBarometer(timeMs: Long) = timeMs - baroMs <= BARO_FRESH_MS && baroAltitude != null
+    private fun freshPressureAltitude(timeMs: Long) = pressureAltitude?.takeIf { timeMs - baroMs <= BARO_FRESH_MS }
 
     private fun advanceClock(timeMs: Long) {
         val dt = timeMs - clockMs

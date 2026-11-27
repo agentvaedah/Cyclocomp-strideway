@@ -123,6 +123,25 @@ class SessionAccumulatorTest {
         }
     }
 
+    @Test fun `relative pressure climb starts before a reliable absolute height is known`() {
+        val acc = SessionAccumulator(athlete, Sport.RIDE, 0)
+        for (i in 0..4) {
+            val t = i * 20_000L
+            acc.onBarometricAltitude(800.0 + i * 10, t)
+            acc.onLocation(t, Geo.destination(origin, 0.0, i * 200.0), 140.0, 10.0, false, 50.0)
+        }
+        val unanchored = acc.tick(80_000)
+        assertEquals(37.0, unanchored.elevationGainM, 0.01)
+        assertNull(unanchored.altitudeM)
+        assertNull(unanchored.maxElevationM)
+        val pos = Geo.destination(origin, 0.0, 1_000.0)
+        acc.onLocation(100_000, pos, 140.0, 10.0, false, 2.0)
+        acc.onBarometricAltitude(840.0, 100_000)
+        val anchored = acc.tick(100_000)
+        assertEquals(37.0, anchored.elevationGainM, 0.01)
+        assertEquals(140.0, anchored.altitudeM!!, 0.01)
+    }
+
     @Test
     fun distanceAndAverageSpeedWhileMoving() {
         val acc = SessionAccumulator(athlete, Sport.RIDE, 0)
