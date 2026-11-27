@@ -29,7 +29,6 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -42,20 +41,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -65,18 +56,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import id.web.agentvaedah.strideway.core.challenge.Award
 import id.web.agentvaedah.strideway.core.format.Format
-import id.web.agentvaedah.strideway.core.physio.TrainingLoad
 import id.web.agentvaedah.strideway.data.prefs.UserProfile
 import id.web.agentvaedah.strideway.ui.components.ActivityRow
 import id.web.agentvaedah.strideway.ui.components.Avatar
-import id.web.agentvaedah.strideway.ui.components.BentoCell
-import id.web.agentvaedah.strideway.ui.components.BentoGrid
 import id.web.agentvaedah.strideway.ui.components.EmptyState
 import id.web.agentvaedah.strideway.ui.components.ErrorState
 import id.web.agentvaedah.strideway.ui.components.LoadingState
 import id.web.agentvaedah.strideway.ui.components.SectionTitle
-import id.web.agentvaedah.strideway.ui.components.TrendChart
-import id.web.agentvaedah.strideway.ui.components.TrendSeries
 import id.web.agentvaedah.strideway.ui.motion.AnimatedNumber
 import id.web.agentvaedah.strideway.ui.motion.Motion
 import id.web.agentvaedah.strideway.ui.motion.reduceMotion
@@ -187,11 +173,13 @@ private fun WeekSummary(s: HomeState.Ready, modifier: Modifier = Modifier) {
                 Text(label, style = MetricText.Label, color = Palette.TextMuted)
                 Spacer(Modifier.height(2.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
-                    AnimatedNumber(
+                    if (label == "FORM" && s.feed.isEmpty()) {
+                        Text("—", style = MetricText.Medium, color = Palette.TextMuted)
+                    } else AnimatedNumber(
                         v,
                         format = { x -> if (label == "FORM") (if (x >= 0.5) "+" else "") + x.roundToInt() else x.roundToInt().toString() },
                         style = MetricText.Medium,
-                        color = if (label == "FORM" && s.feed.isEmpty()) Palette.TextMuted else Palette.Text,
+                        color = Palette.Text,
                     )
                     if (unit.isNotEmpty()) {
                         Spacer(Modifier.width(3.dp))
@@ -318,170 +306,6 @@ private fun TrainingCard(load: WeekLoad?, today: TodaySession?, onRide: (TodaySe
                 TextButton(onClick = onOpenTraining) { Text("Buka Latihan") }
             }
         }
-    }
-}
-
-@Composable
-private fun FormCard(points: List<TrainingLoad.FitnessPoint>, estimated: Boolean, hasActivities: Boolean) {
-    val today = points.lastOrNull()
-    val form = today?.form?.roundToInt() ?: 0
-    val status = formStatus(form, hasActivities && today != null)
-    // Form decides today's session, so it alone spans the grid; fitness and fatigue explain it below.
-    BentoGrid(
-        listOf(
-            BentoCell(span = 2) {
-                Row(verticalAlignment = Alignment.Top) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Form hari ini", style = MetricText.Label, color = Palette.TextMuted)
-                        Row(verticalAlignment = Alignment.Bottom) {
-                            AnimatedNumber(
-                                form.toDouble(),
-                                format = { x -> (if (x >= 0.5) "+" else "") + x.roundToInt() },
-                                style = MetricText.Huge,
-                                color = Palette.Text,
-                            )
-                        }
-                    }
-                    StatusChip(status)
-                }
-                Spacer(Modifier.height(4.dp))
-                Text(status.advice, style = MaterialTheme.typography.bodyMedium, color = Palette.TextMuted)
-                Spacer(Modifier.height(14.dp))
-                if (hasActivities && points.isNotEmpty()) {
-                    var days by rememberSaveable { mutableIntStateOf(42) }
-                    val window = remember(points, days) { points.takeLast(days) }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(7, 14, 42).forEach { n ->
-                            FilterChip(selected = days == n, onClick = { days = n }, label = { Text("$n hari") })
-                        }
-                    }
-                    TrendChart(
-                        series = listOf(
-                            TrendSeries("Fitness", window.map { it.fitness.toFloat() }, Palette.Info),
-                            TrendSeries("Fatigue", window.map { it.fatigue.toFloat() }, Palette.Accent),
-                            TrendSeries("Form", window.map { it.form.toFloat() }, Palette.Text, dashed = true, area = true),
-                        ),
-                        description = "Fitness, fatigue, dan form $days hari terakhir. Pilih titik untuk melihat detail harian.",
-                        describePoint = { i ->
-                            val p = window[i]
-                            "${dayLabel(p.epochDay, "EEEE, d MMMM")}. Beban ${Format.oneDecimal(p.dailyLoad)} TRIMP. " +
-                                "Fitness ${p.fitness.roundToInt()}, fatigue ${p.fatigue.roundToInt()}, form ${p.form.roundToInt()}."
-                        },
-                        height = 150.dp,
-                        startLabel = dayLabel(window.first().epochDay, "d MMM"),
-                        middleLabel = dayLabel(window[window.size / 2].epochDay, "d MMM"),
-                        endLabel = "hari ini",
-                    ) { i ->
-                        val point = window[i]
-                        Column(
-                            Modifier.fillMaxWidth().padding(top = 10.dp)
-                                .background(Palette.SurfaceHigh, MaterialTheme.shapes.medium).padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Text(dayLabel(point.epochDay, "EEEE, d MMMM").orEmpty(), style = MetricText.Label, color = Palette.TextMuted)
-                            Text("Beban harian · ${Format.oneDecimal(point.dailyLoad)} TRIMP", style = MaterialTheme.typography.titleMedium)
-                            val previous = points.getOrNull(points.size - window.size + i - 1)
-                            previous?.let {
-                                val d = point.form - it.form
-                                Text("Perubahan Form: ${if (d > 0) "+" else ""}${Format.oneDecimal(d)} dari kemarin",
-                                    style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    }
-                    Text("Geser grafik untuk memilih hari. Form = Fitness − Fatigue.",
-                        style = MaterialTheme.typography.bodySmall, color = Palette.TextMuted, modifier = Modifier.padding(top = 6.dp))
-                } else {
-                    val waveColor = Palette.Info
-                    val mutedLine = Palette.Outline.copy(alpha = 0.6f)
-                    Column(
-                        Modifier
-                            .fillMaxWidth()
-                            .background(Palette.SurfaceHigh.copy(alpha = 0.45f), MaterialTheme.shapes.medium)
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                    ) {
-                        Canvas(Modifier.fillMaxWidth().height(48.dp)) {
-                            val w = size.width
-                            val h = size.height
-                            drawLine(
-                                mutedLine,
-                                Offset(0f, h * 0.65f),
-                                Offset(w, h * 0.65f),
-                                strokeWidth = 1.dp.toPx(),
-                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f)),
-                            )
-                            val wave = Path().apply {
-                                moveTo(0f, h * 0.72f)
-                                cubicTo(w * 0.22f, h * 0.68f, w * 0.35f, h * 0.32f, w * 0.55f, h * 0.45f)
-                                cubicTo(w * 0.72f, h * 0.56f, w * 0.85f, h * 0.22f, w, h * 0.30f)
-                            }
-                            drawPath(
-                                wave,
-                                waveColor.copy(alpha = 0.35f),
-                                style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f))),
-                            )
-                        }
-                        Spacer(Modifier.height(6.dp))
-                        Text("Grafik tren 42 hari muncul setelah aktivitas pertama tersimpan.", style = MaterialTheme.typography.bodySmall, color = Palette.TextMuted)
-                    }
-                }
-                if (estimated) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "Sebagian aktivitas tanpa sensor detak jantung; bebannya diperkirakan dari durasi.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Palette.TextMuted,
-                    )
-                }
-            },
-            BentoCell {
-                LegendValue("Fitness", today?.fitness?.roundToInt() ?: 0, Palette.Info)
-                Text("Kebugaran jangka panjang (42 hari)", style = MaterialTheme.typography.bodySmall, color = Palette.TextMuted)
-            },
-            BentoCell {
-                LegendValue("Fatigue", today?.fatigue?.roundToInt() ?: 0, Palette.Accent)
-                Text("Kelelahan 7 hari terakhir", style = MaterialTheme.typography.bodySmall, color = Palette.TextMuted)
-            },
-        ),
-        modifier = Modifier.padding(horizontal = 16.dp),
-    )
-}
-
-/** The form number as a word, a colour and one line of advice; colour never carries the meaning alone. */
-private data class FormStatus(val label: String, val advice: String, val color: Color)
-
-@Composable
-private fun formStatus(form: Int, hasData: Boolean): FormStatus = when {
-    !hasData -> FormStatus("Belum ada data", "Rekam aktivitas pertama untuk melihat form.", Palette.TextMuted)
-    form > 15 -> FormStatus("Segar", "Tubuh siap. Waktu yang baik untuk event atau tes.", Palette.Success)
-    form > 5 -> FormStatus("Siap", "Cocok untuk sesi berat atau interval.", Palette.Info)
-    form > -10 -> FormStatus("Seimbang", "Beban dan pemulihan terjaga.", Palette.Text)
-    form > -30 -> FormStatus("Membangun", "Sedang menumpuk beban. Jaga tidur dan makan.", Palette.Warning)
-    else -> FormStatus("Lelah", "Beban tinggi. Pertimbangkan hari pemulihan.", Palette.Error)
-}
-
-@Composable
-private fun StatusChip(s: FormStatus) {
-    Row(
-        Modifier
-            .background(s.color.copy(alpha = 0.16f), CircleShape)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(7.dp).background(s.color, CircleShape))
-        Spacer(Modifier.width(6.dp))
-        Text(s.label, style = MaterialTheme.typography.labelLarge, color = s.color)
-    }
-}
-
-private fun dayLabel(epochDay: Long?, pattern: String): String? =
-    epochDay?.let { LocalDate.ofEpochDay(it).format(DateTimeFormatter.ofPattern(pattern, idLocale)) }
-
-@Composable
-private fun LegendValue(label: String, value: Int, color: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(8.dp).background(color, CircleShape))
-        Spacer(Modifier.width(6.dp))
-        Text("$label $value", style = MaterialTheme.typography.labelLarge, color = Palette.Text)
     }
 }
 
