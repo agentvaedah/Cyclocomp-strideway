@@ -196,9 +196,14 @@ class MapPlannerViewModel @Inject constructor(
         }
     }
 
-    fun clearPlan() {
+    private fun clearPlan() {
         planJob?.cancel()
         _plan.value = PlanState.Idle
+    }
+
+    fun closePlan() {
+        setCutoff(null)
+        clearPlan()
     }
 
     fun savePlanned(option: RouteOption, name: String, onSaved: (Long) -> Unit) {
@@ -208,9 +213,8 @@ class MapPlannerViewModel @Inject constructor(
                 null, option.maneuvers, plannedGainM = option.ascendM, plannedLengthM = option.lengthM,
                 cutoff = cutoff.value,
             )
-            setCutoff(null)
             _message.value = "Rute disimpan"
-            clearPlan()
+            closePlan()
             onSaved(id)
         }
     }

@@ -329,7 +329,7 @@ fun MapsScreen(
                     options = readyOptions,
                     selected = selected,
                     onSelect = planner::select,
-                    onClose = { planOpen = false; planner.clearPlan() },
+                    onClose = { planOpen = false; planner.closePlan() },
                     onPreview = readyOptions.getOrNull(selected)?.let { o ->
                         { preview = PreviewRoute("Alternatif ${selected + 1}", o.points.map { it.latLon }, o.maneuvers, null) }
                     },
