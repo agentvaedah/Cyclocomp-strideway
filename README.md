@@ -4,31 +4,19 @@ Aplikasi Android untuk merekam dan menganalisis ride dan run, dibangun dari `PRD
 
 Backend multi-tenant (FastAPI, PostGIS, CT106) dan unggah otomatis ke Strava adalah fase 4 dan belum ada di repo ini. Aplikasi bekerja penuh secara offline-first; antarmuka sinkronisasi sudah disiapkan di `data/remote/sync/RemoteSyncApi.kt` dan dalam keadaan nonaktif.
 
-## Status build
+## Instal di Android (8.0 atau lebih baru)
 
-Kode ini ditulis di laptop tanpa Android SDK dan tanpa akses keluar jaringan, jadi **belum pernah dikompilasi atau dijalankan**. Logika inti sudah dipisah ke modul `:core` (Kotlin murni) beserta unit test, dan nilai acuan test dihitung terpisah dengan Python. Langkah pertama di mesin yang punya Android Studio adalah build dan menjalankan test di bawah, lalu memperbaiki error kompilasi yang mungkin muncul.
+1. Buka [GitHub Releases](https://github.com/agentvaedah/Cyclocomp-strideway/releases) di ponsel. Di bagian **Assets**, unduh berkas `.apk`, bukan *Source code*.
+2. Buka APK dan pilih **Instal**. Jika Android meminta izin, izinkan browser atau pengelola berkas tersebut untuk instalasi ini, lalu nonaktifkan kembali izinnya.
+3. Prarilis debug ditujukan untuk pengujian. Jika Android menolak pembaruan karena tanda tangan berbeda, **jangan hapus aplikasi lama sebelum mengekspor backup**; menghapus aplikasi juga menghapus aktivitas lokal.
 
-## Dapatkan APK tanpa Android Studio (GitHub Actions)
-
-Repo ini membawa workflow `.github/workflows/android.yml` yang menjalankan unit test dan membuat APK debug setiap kali ada push.
-
-1. Ekstrak ZIP project, lalu buat repository kosong di GitHub (jangan centang "Add a README").
-2. Dari folder hasil ekstrak:
-   ```
-   git remote add origin https://github.com/<akun>/strideway.git
-   git push -u origin master
-   ```
-3. Buka tab **Actions** di GitHub, pilih run **Android** terbaru, tunggu sampai hijau (sekitar 10 menit untuk run pertama).
-4. Di bagian **Artifacts**, unduh `strideway-debug-apk`. Isinya ZIP berisi `app-debug.apk`.
-5. Salin `app-debug.apk` ke ponsel, buka, lalu izinkan "Instal dari sumber tidak dikenal" bila diminta.
-
-Bila run merah, buka langkah yang gagal, salin log errornya, lalu kirim untuk diperbaiki. Untuk menjalankan ulang tanpa push, pakai tombol **Run workflow**.
+Untuk build per commit, [workflow Android](https://github.com/agentvaedah/Cyclocomp-strideway/actions/workflows/android.yml) menjalankan unit test dan menyediakan artefak `strideway-debug-apk`.
 
 ## Build
 
 Kebutuhan: Android Studio Ladybug (2024.2) atau lebih baru, JDK 17, Android SDK 35.
 
-1. Buka folder ini di Android Studio. Saat Gradle sync, Studio membuat `gradle-wrapper.jar` dari `gradle/wrapper/gradle-wrapper.properties` (Gradle 8.11.1). Untuk command line tanpa Studio, jalankan sekali `gradle wrapper --gradle-version 8.11.1`.
+1. Buka folder ini di Android Studio atau gunakan Gradle Wrapper yang sudah disertakan.
 2. Unit test modul inti:
    ```
    ./gradlew :core:test

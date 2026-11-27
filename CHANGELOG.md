@@ -1,9 +1,10 @@
 # Riwayat Update Strideway
 
-Setiap versi di bawah sesuai dengan file ZIP yang dikirim. Kolom "Commit" adalah commit terakhir yang masuk ke ZIP tersebut; lihat isinya dengan `git show <commit>` atau `git log <commit-awal>..<commit>`.
+Riwayat paket APK dan ZIP sumber. Gunakan tag untuk melihat kode yang sesuai dengan tiap rilis.
 
 | Versi | Tanggal | Commit | File |
 |---|---|---|---|
+| 0.6.0-preview.1 | 27-11-2026 | tag `v0.6.0-preview.1` | APK debug di GitHub Releases |
 | 0.5.1 | 05-11-2026 | tag `v0.5.1` | `Strideway-v0.5.1-part1.zip` + `-part2.zip` |
 | 0.5.0 | 16-10-2026 | tag `v0.5` | `Strideway-v0.5.0-part1.zip` + `-part2.zip` |
 | 0.4 | 14-10-2026 | `3d8a6d8` | `Strideway-v0.4.zip` (atau `-part1` + `-part2`) |
@@ -13,6 +14,15 @@ Setiap versi di bawah sesuai dengan file ZIP yang dikirim. Kolom "Commit" adalah
 | 0.1 | 12-10-2026 | `589952b` | `Strideway.zip` |
 
 Mulai 0.5.0, `versionName` di `app/build.gradle.kts` sama dengan nomor versi di sini dan tampil di bawah layar Pengaturan. Versi sebelumnya masih tertulis `0.1.0` di aplikasi.
+
+---
+
+## 0.6.0-preview.1 (27-11-2026)
+
+- **Home:** Event berikutnya menggantikan Form. Pilih rute tersimpan untuk melihat profil elevasi, estimasi finis dan cadangan COT.
+- **Peta dan Rekam:** rencana rute dengan titik singgah, profil elevasi berbasis jarak, arah rute bergerak dan kontrol kecepatan pratinjau 3D.
+- **Tampilan dan AI Coach:** ikon navigasi dan tipografi baru, serta lampiran berkas untuk analisis aktivitas.
+- **Instalasi:** APK debug untuk pengujian; ekspor backup sebelum berpindah dari instalasi dengan tanda tangan berbeda. Rekam GPS aktif dan flyover 3D masih memerlukan validasi di perangkat fisik.
 
 ---
 
