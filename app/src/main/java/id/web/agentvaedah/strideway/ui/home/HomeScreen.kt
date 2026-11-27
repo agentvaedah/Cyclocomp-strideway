@@ -109,7 +109,6 @@ fun HomeScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp).staggeredEnter(1),
                 )
             }
-            item { FormCard(s.fitness, s.anyEstimatedLoad, hasActivities = s.feed.isNotEmpty()) }
             item { InsightsCarousel(s, vm, onOpenGarage) }
             item { SectionTitle("Tantangan bulan ini") }
             items(s.challenges, key = { it.progress.id.name }) { ChallengeRow(it, onJoin = { j -> vm.setJoined(it.progress.id, j) }) }
@@ -152,10 +151,9 @@ private fun TodayHeader(profile: UserProfile, onOpenProfile: () -> Unit) {
     }
 }
 
-/** One line of the week: distance, climb and today's form. */
+/** One line of the week: distance, climb and recorded activities. */
 @Composable
 private fun WeekSummary(s: HomeState.Ready, modifier: Modifier = Modifier) {
-    val form = s.fitness.lastOrNull()?.form?.roundToInt() ?: 0
     Row(
         modifier
             .fillMaxWidth()
@@ -167,17 +165,15 @@ private fun WeekSummary(s: HomeState.Ready, modifier: Modifier = Modifier) {
         listOf(
             Triple("MINGGU INI", s.weekly.thisWeek.distanceKm, "km"),
             Triple("NAIK", s.weekly.thisWeek.elevationM, "m"),
-            Triple("FORM", form.toDouble(), ""),
+            Triple("AKTIVITAS", s.weekly.thisWeek.activities.toDouble(), ""),
         ).forEach { (label, v, unit) ->
             Column(Modifier.weight(1f)) {
                 Text(label, style = MetricText.Label, color = Palette.TextMuted)
                 Spacer(Modifier.height(2.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
-                    if (label == "FORM" && s.feed.isEmpty()) {
-                        Text("—", style = MetricText.Medium, color = Palette.TextMuted)
-                    } else AnimatedNumber(
+                    AnimatedNumber(
                         v,
-                        format = { x -> if (label == "FORM") (if (x >= 0.5) "+" else "") + x.roundToInt() else x.roundToInt().toString() },
+                        format = { x -> x.roundToInt().toString() },
                         style = MetricText.Medium,
                         color = Palette.Text,
                     )

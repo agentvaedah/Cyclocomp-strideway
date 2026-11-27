@@ -14,7 +14,6 @@ import id.web.agentvaedah.strideway.core.geo.Polyline
 import id.web.agentvaedah.strideway.core.model.ActivitySummary
 import id.web.agentvaedah.strideway.core.model.Athlete
 import id.web.agentvaedah.strideway.core.model.LatLon
-import id.web.agentvaedah.strideway.core.physio.TrainingLoad
 import id.web.agentvaedah.strideway.core.physio.Zone
 import id.web.agentvaedah.strideway.core.physio.Zones
 import id.web.agentvaedah.strideway.core.privacy.PrivacyZone
@@ -87,8 +86,6 @@ sealed interface HomeState {
     data class Error(val message: String) : HomeState
     data class Ready(
         val feed: List<FeedItem>,
-        val fitness: List<TrainingLoad.FitnessPoint>,
-        val anyEstimatedLoad: Boolean,
         val challenges: List<ChallengeCard>,
         val calendar: CalendarData,
         val series: StatSeries,
@@ -193,14 +190,8 @@ class HomeViewModel @Inject constructor(
         val thisMonth = YearMonth.now(zone)
         val joined = p.joined.mapNotNull { runCatching { ChallengeId.valueOf(it) }.getOrNull() }.toSet()
         val hrZones = Zones.heartRate(p.athlete.hrMax, p.athlete.hrRest)
-        val today = localToday.toEpochDay()
-        val loads = list.map {
-            TrainingLoad.DailyLoad(Instant.ofEpochMilli(it.startMs).atZone(zone).toLocalDate().toEpochDay(), it.trimp)
-        }
         return HomeState.Ready(
             feed = list.take(FEED_LIMIT).map { FeedItem(it, privatePath(it, privacy)) },
-            fitness = TrainingLoad.series(loads, today - FITNESS_WINDOW_DAYS + 1, today),
-            anyEstimatedLoad = list.any { it.trimpEstimated },
             challenges = Challenges.monthly(summaries, thisMonth, zone).map {
                 ChallengeCard(it, it.id in joined, Achievements.key(it.id, thisMonth) in p.awards)
             },
@@ -230,7 +221,6 @@ class HomeViewModel @Inject constructor(
 
     private companion object {
         const val FEED_LIMIT = 50
-        const val FITNESS_WINDOW_DAYS = 42L
     }
 }
 

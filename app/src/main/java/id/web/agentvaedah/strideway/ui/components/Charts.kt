@@ -25,7 +25,7 @@ data class Series(val values: List<Float>, val color: Color, val dashed: Boolean
 
 /**
  * Minimal multi-series line chart. All series share one y-range so their levels compare;
- * [zeroLine] draws a baseline when the range crosses zero (used by the form curve).
+ * [zeroLine] draws a baseline when the range crosses zero.
  */
 @Composable
 fun LineChart(
@@ -98,6 +98,29 @@ fun LineChart(
             drawLine(cursorColor, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.dp.toPx())
         }
     }
+}
+
+/** Builds a smooth cubic Bezier path through the recorded samples. */
+private fun smoothPath(pts: List<Offset>): Path {
+    val path = Path()
+    if (pts.isEmpty()) return path
+    path.moveTo(pts.first().x, pts.first().y)
+    if (pts.size == 2) {
+        path.lineTo(pts[1].x, pts[1].y)
+        return path
+    }
+    for (i in 0 until pts.lastIndex) {
+        val p0 = pts[(i - 1).coerceAtLeast(0)]
+        val p1 = pts[i]
+        val p2 = pts[i + 1]
+        val p3 = pts[(i + 2).coerceAtMost(pts.lastIndex)]
+        val c1x = p1.x + (p2.x - p0.x) / 6f
+        val c1y = p1.y + (p2.y - p0.y) / 6f
+        val c2x = p2.x - (p3.x - p1.x) / 6f
+        val c2y = p2.y - (p3.y - p1.y) / 6f
+        path.cubicTo(c1x, c1y, c2x, c2y, p2.x, p2.y)
+    }
+    return path
 }
 
 /** Offline route sketch from stored coordinates; no map tiles, so the feed renders without network. */
