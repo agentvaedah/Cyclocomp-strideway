@@ -88,6 +88,18 @@ object RouteSource {
     const val ACTIVITY = "activity"
 }
 
+data class EventRoute(
+    val id: Long,
+    val createdMs: Long,
+    val name: String,
+    val distanceM: Double,
+    val elevationGainM: Double,
+    @Embedded(prefix = "cot_") val eventCutoff: EventCutoff?,
+) {
+    // Restoring a different backup can reuse a numeric route id.
+    fun selectionKey() = "$id:$createdMs"
+}
+
 @Serializable
 @Entity(tableName = "routes")
 data class RouteEntity(

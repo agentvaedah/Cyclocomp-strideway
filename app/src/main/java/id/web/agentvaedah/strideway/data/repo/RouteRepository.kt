@@ -5,18 +5,26 @@ import id.web.agentvaedah.strideway.core.model.TrackPoint
 import id.web.agentvaedah.strideway.core.track.TrackStats
 import id.web.agentvaedah.strideway.core.route.Maneuver
 import id.web.agentvaedah.strideway.core.route.EventCutoff
+import id.web.agentvaedah.strideway.core.route.ElevationProfile
 import id.web.agentvaedah.strideway.core.route.ManeuverType
 import id.web.agentvaedah.strideway.data.db.ManeuverEntity
 import id.web.agentvaedah.strideway.data.db.RouteDao
 import id.web.agentvaedah.strideway.data.db.RouteEntity
 import id.web.agentvaedah.strideway.data.db.RoutePointEntity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class RouteRepository @Inject constructor(private val dao: RouteDao) {
     fun routes(): Flow<List<RouteEntity>> = dao.observeAll()
+
+    fun eventChoices() = dao.eventChoices()
+
+    fun elevationProfile(id: Long) = dao.observePoints(id).map { points ->
+        ElevationProfile.fromTrack(points.map { it.toTrackPoint() })
+    }
 
     fun route(id: Long): Flow<RouteEntity?> = dao.observe(id)
 

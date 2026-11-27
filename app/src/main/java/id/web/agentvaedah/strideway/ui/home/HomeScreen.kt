@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,7 +45,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -55,18 +55,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import id.web.agentvaedah.strideway.core.challenge.Award
 import id.web.agentvaedah.strideway.core.format.Format
-import id.web.agentvaedah.strideway.core.physio.TrainingLoad
 import id.web.agentvaedah.strideway.data.prefs.UserProfile
 import id.web.agentvaedah.strideway.ui.components.ActivityRow
 import id.web.agentvaedah.strideway.ui.components.Avatar
-import id.web.agentvaedah.strideway.ui.components.BentoCell
-import id.web.agentvaedah.strideway.ui.components.BentoGrid
 import id.web.agentvaedah.strideway.ui.components.EmptyState
 import id.web.agentvaedah.strideway.ui.components.ErrorState
 import id.web.agentvaedah.strideway.ui.components.LoadingState
 import id.web.agentvaedah.strideway.ui.components.SectionTitle
-import id.web.agentvaedah.strideway.ui.components.TrendChart
-import id.web.agentvaedah.strideway.ui.components.TrendSeries
 import id.web.agentvaedah.strideway.ui.motion.AnimatedNumber
 import id.web.agentvaedah.strideway.ui.motion.Motion
 import id.web.agentvaedah.strideway.ui.motion.reduceMotion
@@ -104,6 +99,7 @@ fun HomeScreen(
         is HomeState.Ready -> LazyColumn(Modifier.fillMaxSize()) {
             item { TodayHeader(s.profile, onOpenProfile) }
             item { WeekSummary(s, Modifier.padding(horizontal = 16.dp).staggeredEnter(0)) }
+            item(key = "next-event") { NextEventCard(onOpenMaps = onImport) }
             item {
                 TrainingCard(
                     s.weekLoad,
@@ -113,7 +109,6 @@ fun HomeScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp).staggeredEnter(1),
                 )
             }
-            item { FormCard(s.fitness, s.anyEstimatedLoad, hasActivities = s.feed.isNotEmpty()) }
             item { InsightsCarousel(s, vm, onOpenGarage) }
             item { SectionTitle("Tantangan bulan ini") }
             items(s.challenges, key = { it.progress.id.name }) { ChallengeRow(it, onJoin = { j -> vm.setJoined(it.progress.id, j) }) }
@@ -156,28 +151,35 @@ private fun TodayHeader(profile: UserProfile, onOpenProfile: () -> Unit) {
     }
 }
 
-/** One line of the week: distance, climb and today's form. */
+/** One line of the week: distance, climb and recorded activities. */
 @Composable
 private fun WeekSummary(s: HomeState.Ready, modifier: Modifier = Modifier) {
-    val form = s.fitness.lastOrNull()?.form?.roundToInt() ?: 0
-    Row(modifier.fillMaxWidth().background(Palette.Surface, MaterialTheme.shapes.large).padding(14.dp)) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .background(Palette.Surface, MaterialTheme.shapes.large)
+            .border(1.dp, Palette.Outline.copy(alpha = 0.6f), MaterialTheme.shapes.large)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         listOf(
-            Triple("Minggu ini", s.weekly.thisWeek.distanceKm, "km"),
-            Triple("Naik", s.weekly.thisWeek.elevationM, "m"),
-            Triple("Form", form.toDouble(), ""),
+            Triple("MINGGU INI", s.weekly.thisWeek.distanceKm, "km"),
+            Triple("NAIK", s.weekly.thisWeek.elevationM, "m"),
+            Triple("AKTIVITAS", s.weekly.thisWeek.activities.toDouble(), ""),
         ).forEach { (label, v, unit) ->
             Column(Modifier.weight(1f)) {
                 Text(label, style = MetricText.Label, color = Palette.TextMuted)
+                Spacer(Modifier.height(2.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
                     AnimatedNumber(
                         v,
-                        format = { x -> if (label == "Form") (if (x >= 0.5) "+" else "") + x.roundToInt() else x.roundToInt().toString() },
+                        format = { x -> x.roundToInt().toString() },
                         style = MetricText.Medium,
                         color = Palette.Text,
                     )
                     if (unit.isNotEmpty()) {
                         Spacer(Modifier.width(3.dp))
-                        Text(unit, style = MetricText.Label, color = Palette.TextMuted, modifier = Modifier.padding(bottom = 4.dp))
+                        Text(unit, style = MetricText.Label, color = Palette.TextMuted, modifier = Modifier.padding(bottom = 5.dp))
                     }
                 }
             }
@@ -261,115 +263,6 @@ private fun TrainingCard(load: WeekLoad?, today: TodaySession?, onRide: (TodaySe
                 TextButton(onClick = onOpenTraining) { Text("Buka Latihan") }
             }
         }
-    }
-}
-
-@Composable
-private fun FormCard(points: List<TrainingLoad.FitnessPoint>, estimated: Boolean, hasActivities: Boolean) {
-    val today = points.lastOrNull()
-    val form = today?.form?.roundToInt() ?: 0
-    val status = formStatus(form, hasActivities && today != null)
-    // Form decides today's session, so it alone spans the grid; fitness and fatigue explain it below.
-    BentoGrid(
-        listOf(
-            BentoCell(span = 2) {
-                Row(verticalAlignment = Alignment.Top) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Form hari ini", style = MetricText.Label, color = Palette.TextMuted)
-                        Row(verticalAlignment = Alignment.Bottom) {
-                            AnimatedNumber(
-                                form.toDouble(),
-                                format = { x -> (if (x >= 0.5) "+" else "") + x.roundToInt() },
-                                style = MetricText.Huge,
-                                color = Palette.Text,
-                            )
-                        }
-                    }
-                    StatusChip(status)
-                }
-                Spacer(Modifier.height(4.dp))
-                Text(status.advice, style = MaterialTheme.typography.bodyMedium, color = Palette.TextMuted)
-                Spacer(Modifier.height(14.dp))
-                if (hasActivities) {
-                    TrendChart(
-                        series = listOf(
-                            TrendSeries("Fitness", points.map { it.fitness.toFloat() }, Palette.Info, area = true),
-                            TrendSeries("Fatigue", points.map { it.fatigue.toFloat() }, Palette.Accent),
-                            TrendSeries("Form", points.map { it.form.toFloat() }, Palette.Text, dashed = true),
-                        ),
-                        description = "Fitness, fatigue, dan form 42 hari terakhir. Angka di legenda adalah nilai hari ini.",
-                        height = 150.dp,
-                        startLabel = dayLabel(points.firstOrNull()?.epochDay, "d MMM"),
-                        middleLabel = dayLabel(points.getOrNull(points.size / 2)?.epochDay, "d MMM"),
-                        endLabel = "hari ini",
-                    )
-                    Text(
-                        "42 hari terakhir. Fitness naik perlahan, fatigue bergerak cepat, form adalah selisihnya.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Palette.TextMuted,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
-                } else {
-                    Text("Grafik muncul setelah aktivitas pertama tersimpan.", style = MaterialTheme.typography.bodySmall, color = Palette.TextMuted)
-                }
-                if (estimated) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "Sebagian aktivitas tanpa sensor detak jantung; bebannya diperkirakan dari durasi.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Palette.TextMuted,
-                    )
-                }
-            },
-            BentoCell {
-                LegendValue("Fitness", today?.fitness?.roundToInt() ?: 0, Palette.Info)
-                Text("Kebugaran jangka panjang (42 hari)", style = MaterialTheme.typography.bodySmall, color = Palette.TextMuted)
-            },
-            BentoCell {
-                LegendValue("Fatigue", today?.fatigue?.roundToInt() ?: 0, Palette.Accent)
-                Text("Kelelahan 7 hari terakhir", style = MaterialTheme.typography.bodySmall, color = Palette.TextMuted)
-            },
-        ),
-        modifier = Modifier.padding(horizontal = 16.dp),
-    )
-}
-
-/** The form number as a word, a colour and one line of advice; colour never carries the meaning alone. */
-private data class FormStatus(val label: String, val advice: String, val color: Color)
-
-@Composable
-private fun formStatus(form: Int, hasData: Boolean): FormStatus = when {
-    !hasData -> FormStatus("Belum ada data", "Rekam aktivitas pertama untuk melihat form.", Palette.TextMuted)
-    form > 15 -> FormStatus("Segar", "Tubuh siap. Waktu yang baik untuk event atau tes.", Palette.Success)
-    form > 5 -> FormStatus("Siap", "Cocok untuk sesi berat atau interval.", Palette.Info)
-    form > -10 -> FormStatus("Seimbang", "Beban dan pemulihan terjaga.", Palette.Text)
-    form > -30 -> FormStatus("Membangun", "Sedang menumpuk beban. Jaga tidur dan makan.", Palette.Warning)
-    else -> FormStatus("Lelah", "Beban tinggi. Pertimbangkan hari pemulihan.", Palette.Error)
-}
-
-@Composable
-private fun StatusChip(s: FormStatus) {
-    Row(
-        Modifier
-            .background(s.color.copy(alpha = 0.16f), CircleShape)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(7.dp).background(s.color, CircleShape))
-        Spacer(Modifier.width(6.dp))
-        Text(s.label, style = MaterialTheme.typography.labelLarge, color = s.color)
-    }
-}
-
-private fun dayLabel(epochDay: Long?, pattern: String): String? =
-    epochDay?.let { LocalDate.ofEpochDay(it).format(DateTimeFormatter.ofPattern(pattern, idLocale)) }
-
-@Composable
-private fun LegendValue(label: String, value: Int, color: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(8.dp).background(color, CircleShape))
-        Spacer(Modifier.width(6.dp))
-        Text("$label $value", style = MaterialTheme.typography.labelLarge, color = Palette.Text)
     }
 }
 

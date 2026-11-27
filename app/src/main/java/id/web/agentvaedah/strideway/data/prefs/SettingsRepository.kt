@@ -147,6 +147,7 @@ class SettingsRepository @Inject constructor(@ApplicationContext context: Contex
 
         val wheel = doublePreferencesKey("wheel_circumference")
         val activeRoute = longPreferencesKey("active_route")
+        val homeEvent = stringPreferencesKey("home_event_route")
 
         val voiceEnabled = booleanPreferencesKey("voice_enabled")
         val voiceProvider = stringPreferencesKey("voice_provider")
@@ -305,6 +306,12 @@ class SettingsRepository @Inject constructor(@ApplicationContext context: Contex
     }
 
     val activeRouteId: Flow<Long?> = store.data.map { it[Keys.activeRoute] }.distinctUntilChanged()
+
+    val homeEvent: Flow<String?> = store.data.map { it[Keys.homeEvent] }.distinctUntilChanged()
+
+    suspend fun setHomeEvent(key: String?) {
+        store.edit { if (key == null) it.remove(Keys.homeEvent) else it[Keys.homeEvent] = key }
+    }
 
     suspend fun setActiveRouteId(id: Long?) {
         store.edit { p -> if (id == null) p.remove(Keys.activeRoute) else p[Keys.activeRoute] = id }

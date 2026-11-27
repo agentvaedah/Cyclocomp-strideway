@@ -172,6 +172,12 @@ interface GearDao {
 
 @Dao
 interface RouteDao {
+    @Query("SELECT id, createdMs, name, distanceM, elevationGainM, cot_limitMin, cot_stopMin, cot_speedKmh FROM routes ORDER BY createdMs DESC, id DESC")
+    fun eventChoices(): Flow<List<EventRoute>>
+
+    @Query("SELECT * FROM route_points WHERE routeId = :routeId ORDER BY seq")
+    fun observePoints(routeId: Long): Flow<List<RoutePointEntity>>
+
     @Query("SELECT * FROM routes ORDER BY createdMs DESC")
     fun observeAll(): Flow<List<RouteEntity>>
 

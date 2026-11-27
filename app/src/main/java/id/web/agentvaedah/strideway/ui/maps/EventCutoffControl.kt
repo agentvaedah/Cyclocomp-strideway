@@ -12,6 +12,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import id.web.agentvaedah.strideway.core.format.Format
 import id.web.agentvaedah.strideway.core.route.EventCutoff
+import id.web.agentvaedah.strideway.ui.theme.Palette
 import java.util.Locale
 import kotlin.math.abs
 
@@ -40,16 +41,8 @@ fun EventCutoffControl(distanceM: Double, event: EventCutoff?, onSave: (EventCut
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                 OutlinedTextField(stops, { stops = it }, label = { Text("Total berhenti (menit)") }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                if (draft != null) {
-                    val time = draft.estimatedMs(distanceM)
-                    val margin = draft.remainingMs(time)
-                    Text("Estimasi finis ${Format.duration(time)} setelah start", style = MaterialTheme.typography.titleMedium)
-                    Text(when {
-                        margin < 0 -> "Lewat batas ${Format.duration(abs(margin))}"
-                        margin > 0 -> "Cadangan ${Format.duration(margin)}"
-                        else -> "Tepat di batas waktu"
-                    })
-                } else Text("Gunakan jam:menit, kecepatan 0,1–200 km/j, dan jeda lebih singkat dari COT.", style = MaterialTheme.typography.bodySmall)
+                if (draft != null) FinishEstimate(draft, distanceM)
+                else Text("Gunakan jam:menit, kecepatan 0,1–200 km/j, dan jeda lebih singkat dari COT.", style = MaterialTheme.typography.bodySmall)
                 Text("Saat navigasi, hitung mundur dimulai ketika Rekam dimulai. Mulai rekaman saat start resmi.",
                     style = MaterialTheme.typography.bodySmall)
                 if (event != null) TextButton(onClick = { onSave(null); open = false }) { Text("Hapus COT") }
@@ -61,3 +54,23 @@ fun EventCutoffControl(distanceM: Double, event: EventCutoff?, onSave: (EventCut
 }
 
 private fun durationInput(min: Int) = String.format(Locale.US, "%d:%02d", min / 60, min % 60)
+
+@Composable
+internal fun FinishEstimate(event: EventCutoff, distanceM: Double) {
+    if (!distanceM.isFinite() || distanceM <= 0) {
+        Text("Estimasi finis belum tersedia: rute belum memiliki jarak.")
+        return
+    }
+    val time = event.estimatedMs(distanceM)
+    val margin = event.remainingMs(time)
+    Text("Estimasi finis ${Format.elapsedWords(time)} setelah start", style = MaterialTheme.typography.titleMedium)
+    Text(when {
+        margin < 0 -> "Lewat batas ${Format.elapsedWords(abs(margin))}"
+        margin > 0 -> "Cadangan ${Format.elapsedWords(margin)}"
+        else -> "Tepat di batas waktu"
+    }, color = when {
+        margin < 0 -> Palette.Error
+        margin > 0 -> Palette.Success
+        else -> Palette.Text
+    })
+}
