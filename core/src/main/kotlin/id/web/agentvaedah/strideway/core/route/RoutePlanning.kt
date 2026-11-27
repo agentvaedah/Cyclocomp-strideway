@@ -3,6 +3,7 @@ package id.web.agentvaedah.strideway.core.route
 import id.web.agentvaedah.strideway.core.geo.Geo
 import id.web.agentvaedah.strideway.core.model.LatLon
 import id.web.agentvaedah.strideway.core.model.TrackPoint
+import id.web.agentvaedah.strideway.core.track.TrackStats
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -42,12 +43,14 @@ object BrouterParser {
             RoutePoint(a[1].jsonPrimitive.doubleOrNull!!, a[0].jsonPrimitive.doubleOrNull!!, a.getOrNull(2)?.jsonPrimitive?.doubleOrNull)
         }
         fun prop(name: String) = props?.get(name)?.jsonPrimitive?.contentOrNull?.toDoubleOrNull()
-        val length = prop("track-length") ?: 0.0
+        val length = prop("track-length")?.takeIf { it.isFinite() && it > 0 }
+            ?: TrackStats.distanceM(points.map { TrackPoint(it.lat, it.lon, it.ele) })
         val shares = surfaceShares(props?.get("messages") as? JsonArray, length)
         RouteOption(
             points = points,
             lengthM = length,
-            ascendM = prop("filtered ascend") ?: 0.0,
+            ascendM = prop("filtered ascend")?.takeIf { it.isFinite() && it >= 0 }
+                ?: TrackStats.elevationGainM(points.map { TrackPoint(it.lat, it.lon, it.ele) }),
             timeS = prop("total-time")?.toInt() ?: 0,
             surfaceShare = shares,
             pavedShare = shares.filterKeys { it in paved }.values.sum(),

@@ -9,6 +9,7 @@ import id.web.agentvaedah.strideway.core.model.Sport
 import id.web.agentvaedah.strideway.core.model.Track
 import id.web.agentvaedah.strideway.core.model.TrackPoint
 import id.web.agentvaedah.strideway.core.route.LoopPlanner
+import id.web.agentvaedah.strideway.core.route.EventCutoff
 import id.web.agentvaedah.strideway.core.route.Maneuver
 import id.web.agentvaedah.strideway.core.route.RouteIntentException
 import id.web.agentvaedah.strideway.core.route.RouteIntents
@@ -219,6 +220,15 @@ class MapsViewModel @Inject constructor(
 
     fun hideShown() {
         _shownRoute.value = null
+    }
+
+    fun setCutoff(id: Long, cutoff: EventCutoff?) {
+        viewModelScope.launch {
+            routes.setCutoff(id, cutoff)
+            _shownRoute.value?.takeIf { it.first.id == id }?.let { (r, track) ->
+                _shownRoute.value = r.copy(eventCutoff = cutoff) to track
+            }
+        }
     }
 
     fun setNavigation(routeId: Long?) = viewModelScope.launch { settings.setActiveRouteId(routeId) }

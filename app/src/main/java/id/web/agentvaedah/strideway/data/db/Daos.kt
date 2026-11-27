@@ -181,6 +181,9 @@ interface RouteDao {
     @Query("SELECT * FROM routes WHERE id = :id")
     fun observe(id: Long): Flow<RouteEntity?>
 
+    @Query("UPDATE routes SET cot_limitMin = :limit, cot_stopMin = :stops, cot_speedKmh = :speed WHERE id = :id")
+    suspend fun setCutoff(id: Long, limit: Int?, stops: Int?, speed: Double?)
+
     @Query("SELECT * FROM route_points WHERE routeId = :routeId ORDER BY seq")
     suspend fun points(routeId: Long): List<RoutePointEntity>
 
@@ -277,4 +280,3 @@ interface TrainingDao {
     @Query("DELETE FROM training_plans")
     suspend fun deleteAllPlans()
 }
-

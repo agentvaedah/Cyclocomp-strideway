@@ -29,6 +29,8 @@ import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -54,6 +56,8 @@ import id.web.agentvaedah.strideway.core.format.Format
 import id.web.agentvaedah.strideway.core.model.LatLon
 import id.web.agentvaedah.strideway.core.model.Sport
 import id.web.agentvaedah.strideway.core.route.RouteOption
+import id.web.agentvaedah.strideway.core.route.Itinerary
+import id.web.agentvaedah.strideway.core.route.EventCutoff
 import id.web.agentvaedah.strideway.core.route.RouteSort
 import id.web.agentvaedah.strideway.data.db.PlaceEntity
 import id.web.agentvaedah.strideway.data.prefs.MapBase
@@ -217,11 +221,13 @@ fun MapLayersSheet(
     }
 }
 
-/** Route planner: endpoints, then alternatives sortable by length, climb or how much is paved. */
+enum class PlanPin(val label: String) { START("titik awal"), VIA("titik singgah"), END("tujuan") }
+
 @Composable
 fun RoutePlannerSheet(
-    from: Endpoint?,
-    to: Endpoint?,
+    itinerary: Itinerary,
+    event: EventCutoff?,
+    onEvent: (EventCutoff?) -> Unit,
     here: LatLon?,
     focus: Endpoint?,
     saved: List<PlaceEntity>,
@@ -229,8 +235,8 @@ fun RoutePlannerSheet(
     sort: RouteSort,
     selected: Int,
     sorted: (List<RouteOption>) -> List<RouteOption>,
-    onFrom: (Endpoint?) -> Unit,
-    onTo: (Endpoint?) -> Unit,
+    onEdit: (Itinerary) -> Unit,
+    onMapPick: (PlanPin) -> Unit,
     onPlan: () -> Unit,
     onSort: (RouteSort) -> Unit,
     onSelect: (Int) -> Unit,
@@ -240,19 +246,25 @@ fun RoutePlannerSheet(
         here?.let { add(Endpoint("Lokasi sekarang", it)) }
         focus?.let { add(it) }
         saved.forEach { add(Endpoint(it.name, LatLon(it.lat, it.lon))) }
-    }.distinctBy { it.name }
+    }.distinctBy { it.pos }
+    val (from, stops, to) = itinerary
     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Rencana rute", style = MaterialTheme.typography.titleLarge)
-        EndpointPicker("Dari", from, choices, onFrom)
-        EndpointPicker("Ke", to, choices, onTo)
-        if (choices.size < 2) {
-            Text(
-                "Cari lokasi di kotak pencarian lalu Simpan lokasi agar bisa dipilih di sini.",
-                style = MaterialTheme.typography.bodySmall,
-                color = Palette.TextMuted,
-            )
+        StopPicker("A · Awal", from, choices, { onEdit(itinerary.copy(from = it)) }, { onMapPick(PlanPin.START) })
+        stops.forEachIndexed { i, stop ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("${i + 1} · ${stop.name}", modifier = Modifier.weight(1f))
+                if (i > 0) TextButton(onClick = { onEdit(itinerary.moveUp(i)) }) { Text("Naik") }
+                TextButton(onClick = { onEdit(itinerary.copy(stops = stops.filterIndexed { j, _ -> j != i })) }) { Text("Hapus") }
+            }
         }
-        Button(onClick = onPlan, enabled = from != null && to != null && from.pos != to.pos && plan != PlanState.Loading) {
+        StopPicker("+ Titik singgah", null, choices, { onEdit(itinerary.copy(stops = stops + it)) }, { onMapPick(PlanPin.VIA) })
+        StopPicker("B · Tujuan", to, choices, { onEdit(itinerary.copy(to = it)) }, { onMapPick(PlanPin.END) })
+        if (from != null && to != null) {
+            TextButton(onClick = { onEdit(itinerary.reverse()) }) { Text("Balik arah rute") }
+            if (!itinerary.canRoute) Text("Dua titik berurutan tidak boleh sama.", color = Palette.Error)
+        }
+        Button(onClick = onPlan, enabled = itinerary.canRoute && plan != PlanState.Loading) {
             Text("Cari rute")
         }
         when (plan) {
@@ -272,20 +284,26 @@ fun RoutePlannerSheet(
                 list.forEachIndexed { i, o -> OptionCard(o, i, selected == i) { onSelect(i) } }
                 var name by remember(from, to) { mutableStateOf("${from?.name ?: ""} ke ${to?.name ?: ""}".take(60)) }
                 OutlinedTextField(name, { name = it.take(60) }, label = { Text("Nama rute") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                list.getOrNull(selected)?.let { o -> Button(onClick = { onSave(o, name) }) { Text("Simpan rute ini") } }
+                list.getOrNull(selected)?.let { o ->
+                    EventCutoffControl(o.lengthM, event, onEvent, o.timeS.takeIf { it > 0 }?.let { o.lengthM * 3.6 / it })
+                    Button(onClick = { onSave(o, name) }) { Text("Simpan rute ini") }
+                }
                 Text("Rute dihitung oleh BRouter dari data OpenStreetMap.", style = MaterialTheme.typography.bodySmall, color = Palette.TextMuted)
             }
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun EndpointPicker(label: String, value: Endpoint?, choices: List<Endpoint>, onPick: (Endpoint?) -> Unit) {
-    Column {
-        Text("$label: ${value?.name ?: "belum dipilih"}", style = MaterialTheme.typography.bodyLarge)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            choices.forEach { c -> FilterChip(value?.name == c.name, { onPick(c) }, { Text(c.name, maxLines = 1) }) }
+private fun StopPicker(label: String, value: Endpoint?, choices: List<Endpoint>, onPick: (Endpoint) -> Unit, onMap: () -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth()) {
+            Text(listOfNotNull(label, value?.name).joinToString("  ·  "), maxLines = 2)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(text = { Text("Pilih di peta") }, onClick = { open = false; onMap() })
+            choices.forEach { c -> DropdownMenuItem(text = { Text(c.name) }, onClick = { open = false; onPick(c) }) }
         }
     }
 }

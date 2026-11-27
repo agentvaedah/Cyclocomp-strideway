@@ -97,6 +97,20 @@ class SessionAccumulatorTest {
     }
 
     @Test
+    fun weakGpsAltitudeDoesNotHideBarometricClimbing() {
+        val baro = SessionAccumulator(athlete, Sport.RIDE, 0)
+        val gpsOnly = SessionAccumulator(athlete, Sport.RIDE, 0)
+        for (i in 0..4) {
+            val t = i * 20_000L
+            val pos = Geo.destination(origin, 0.0, i * 200.0)
+            baro.onBarometricAltitude(20.0 + i * 10, t)
+            for (acc in listOf(baro, gpsOnly)) acc.onLocation(t, pos, 120.0 + i * 10, 10.0, false, 40.0)
+        }
+        assertEquals(37.0, baro.tick(80_000).elevationGainM, 0.01)
+        assertEquals(0.0, gpsOnly.tick(80_000).elevationGainM, 0.01)
+    }
+
+    @Test
     fun distanceAndAverageSpeedWhileMoving() {
         val acc = SessionAccumulator(athlete, Sport.RIDE, 0)
         acc.onLocation(0, origin, 10.0, 0.0, false)

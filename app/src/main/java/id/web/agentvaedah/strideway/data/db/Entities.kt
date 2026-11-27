@@ -1,6 +1,8 @@
 package id.web.agentvaedah.strideway.data.db
 
 import androidx.room.ColumnInfo
+import androidx.room.Embedded
+import id.web.agentvaedah.strideway.core.route.EventCutoff
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -97,6 +99,7 @@ data class RouteEntity(
     val elevationGainM: Double,
     val polyline: String,
     val prompt: String? = null,
+    @Embedded(prefix = "cot_") val eventCutoff: EventCutoff? = null,
 )
 
 @Serializable
@@ -264,4 +267,3 @@ data class PlannedSessionEntity(
     /** Activity that completed this session, if any. */
     val doneActivityId: Long?,
 )
-

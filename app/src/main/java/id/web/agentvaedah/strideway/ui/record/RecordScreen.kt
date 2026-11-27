@@ -180,6 +180,11 @@ private fun LiveDashboard(s: RecordingState.Active, vm: RecordViewModel, onOpenW
                 }
             }
         }
+        savedRoutes.firstOrNull { it.id == navRoute?.id }?.eventCutoff?.let { event ->
+            val left = event.remainingMs(s.metrics.elapsedMs)
+            Text(if (left >= 0) "Sisa COT finis · ${Format.duration(left)}" else "Lewat COT finis · ${Format.duration(-left)}",
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp), color = if (left < 0) Palette.Error else Palette.Text)
+        }
         ControlBar(
             paused = s.metrics.manualPaused,
             onPause = vm::togglePause,

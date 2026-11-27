@@ -90,7 +90,7 @@ class SessionAccumulator(
             distanceM += step
             if (speed > maxSpeedMps) maxSpeedMps = speed
             currentAltitude(timeMs)?.let { ele ->
-                gain.add(distanceM, ele, verticalAccuracyM)
+                gain.add(distanceM, ele, if (hasFreshBarometer(timeMs)) null else this.verticalAccuracyM)
                 gradePct = grade.add(distanceM, ele)
             }
         }
@@ -180,7 +180,9 @@ class SessionAccumulator(
      * inflates climb badly. GPS is the fallback, and it is what anchors the barometer to a real datum.
      */
     private fun currentAltitude(timeMs: Long): Double? =
-        if (timeMs - baroMs <= BARO_FRESH_MS) baroAltitude else gpsAltitude
+        if (hasFreshBarometer(timeMs)) baroAltitude else gpsAltitude
+
+    private fun hasFreshBarometer(timeMs: Long) = timeMs - baroMs <= BARO_FRESH_MS && baroAltitude != null
 
     private fun advanceClock(timeMs: Long) {
         val dt = timeMs - clockMs

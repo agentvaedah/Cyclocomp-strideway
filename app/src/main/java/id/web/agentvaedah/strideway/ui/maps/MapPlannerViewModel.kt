@@ -10,6 +10,8 @@ import id.web.agentvaedah.strideway.core.model.LatLon
 import id.web.agentvaedah.strideway.core.model.Sport
 import id.web.agentvaedah.strideway.core.model.TrackPoint
 import id.web.agentvaedah.strideway.core.route.DrawRouteDraft
+import id.web.agentvaedah.strideway.core.route.Itinerary
+import id.web.agentvaedah.strideway.core.route.EventCutoff
 import id.web.agentvaedah.strideway.core.route.RouteOption
 import id.web.agentvaedah.strideway.core.route.RouteOptions
 import id.web.agentvaedah.strideway.core.route.RouteSort
@@ -35,7 +37,7 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /** Start or end of a planned route: the rider's position, a search result or a saved place. */
-data class Endpoint(val name: String, val pos: LatLon)
+typealias Endpoint = id.web.agentvaedah.strideway.core.route.Endpoint
 
 sealed interface SearchState {
     data object Idle : SearchState
@@ -72,10 +74,11 @@ class MapPlannerViewModel @Inject constructor(
     private val _focus = MutableStateFlow<Endpoint?>(null)
     val focus: StateFlow<Endpoint?> = _focus.asStateFlow()
 
-    private val _from = MutableStateFlow<Endpoint?>(null)
-    val from: StateFlow<Endpoint?> = _from.asStateFlow()
-    private val _to = MutableStateFlow<Endpoint?>(null)
-    val to: StateFlow<Endpoint?> = _to.asStateFlow()
+    private val _itinerary = MutableStateFlow(Itinerary())
+    val itinerary = _itinerary.asStateFlow()
+    private val _cutoff = MutableStateFlow<EventCutoff?>(null)
+    val cutoff = _cutoff.asStateFlow()
+    fun setCutoff(event: EventCutoff?) { _cutoff.value = event }
 
     private val _plan = MutableStateFlow<PlanState>(PlanState.Idle)
     val plan: StateFlow<PlanState> = _plan.asStateFlow()
@@ -109,8 +112,9 @@ class MapPlannerViewModel @Inject constructor(
     private fun profile(): String = if (sport.value == Sport.RUN) "hiking-beta" else "trekking"
 
     fun setSport(s: Sport) {
+        if (s == sport.value) return
+        clearPlan()
         viewModelScope.launch { settings.setMapsSport(s) }
-        if (_plan.value is PlanState.Ready) plan()
     }
 
     fun toggleOverlay(o: MapOverlay) {
@@ -154,9 +158,15 @@ class MapPlannerViewModel @Inject constructor(
         viewModelScope.launch { places.delete(id) }
     }
 
-    fun setFrom(e: Endpoint?) { _from.value = e }
+    fun updateItinerary(value: Itinerary) {
+        if (value != _itinerary.value) {
+            clearPlan()
+            _itinerary.value = value
+        }
+    }
 
-    fun setTo(e: Endpoint?) { _to.value = e }
+    fun setFrom(e: Endpoint?) = updateItinerary(_itinerary.value.copy(from = e))
+    fun setTo(e: Endpoint?) = updateItinerary(_itinerary.value.copy(to = e))
 
     fun setSort(s: RouteSort) {
         _sort.value = s
@@ -167,16 +177,15 @@ class MapPlannerViewModel @Inject constructor(
 
     fun sorted(options: List<RouteOption>): List<RouteOption> = RouteOptions.sort(options, _sort.value)
 
-    /** Fetches up to three alternatives between [from] and [to] for the chosen sport. */
+    /** Fetches alternatives through all stops in the rider's chosen order. */
     fun plan() {
-        val a = _from.value ?: return
-        val b = _to.value ?: return
+        val itinerary = _itinerary.value.takeIf { it.canRoute } ?: return
         planJob?.cancel()
         _plan.value = PlanState.Loading
         _selected.value = 0
         planJob = viewModelScope.launch {
             _plan.value = try {
-                PlanState.Ready(routing.alternatives(listOf(a.pos, b.pos), profile()))
+                PlanState.Ready(routing.alternatives(itinerary.points, profile()))
             } catch (e: RoutingException) {
                 PlanState.Failed(e.message ?: "Rute gagal dihitung")
             } catch (e: CancellationException) {
@@ -194,7 +203,12 @@ class MapPlannerViewModel @Inject constructor(
 
     fun savePlanned(option: RouteOption, name: String, onSaved: (Long) -> Unit) {
         viewModelScope.launch {
-            val id = routes.save(name, RouteSource.PLANNED, option.points.map { TrackPoint(it.lat, it.lon, it.ele) }, null, option.maneuvers)
+            val id = routes.save(
+                name, RouteSource.PLANNED, option.points.map { TrackPoint(it.lat, it.lon, it.ele) },
+                null, option.maneuvers, plannedGainM = option.ascendM, plannedLengthM = option.lengthM,
+                cutoff = cutoff.value,
+            )
+            setCutoff(null)
             _message.value = "Rute disimpan"
             clearPlan()
             onSaved(id)

@@ -29,6 +29,12 @@ class BrouterParserTest {
     }
 
     @Test
+    fun missingSummaryFallsBackToLocalGainButExplicitZeroIsKept() {
+        assertEquals(17.0, BrouterParser.parse(json.replace("\"filtered ascend\":\"42\",", ""))!!.ascendM, 0.01)
+        assertEquals(0.0, BrouterParser.parse(json.replace("\"42\"", "\"0\""))!!.ascendM, 0.01)
+    }
+
+    @Test
     fun surfaceShares() {
         val r = BrouterParser.parse(json)!!
         assertEquals(1000.0 / 1500, r.surfaceShare.getValue("asphalt"), 1e-9)

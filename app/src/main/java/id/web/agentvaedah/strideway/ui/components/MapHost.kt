@@ -457,13 +457,13 @@ object MapLayers {
         return bmp
     }
 
-    fun setPoint(style: Style, id: String, point: LatLon?, color: Color, radiusDp: Float = 7f) {
-        val collection = if (point != null) {
-            FeatureCollection.fromFeature(Feature.fromGeometry(Point.fromLngLat(point.lon, point.lat)))
-        } else {
-            FeatureCollection.fromFeatures(emptyList())
-        }
+    fun setPoint(style: Style, id: String, point: LatLon?, color: Color, radiusDp: Float = 7f) =
+        setPoints(style, id, listOfNotNull(point), color, radiusDp)
+
+    fun setPoints(style: Style, id: String, points: List<LatLon>, color: Color, radiusDp: Float = 7f) {
         val source = style.getSourceAs<GeoJsonSource>(id)
+        if (source == null && points.isEmpty()) return
+        val collection = FeatureCollection.fromFeatures(points.map { Feature.fromGeometry(Point.fromLngLat(it.lon, it.lat)) })
         if (source != null) {
             source.setGeoJson(collection)
             return

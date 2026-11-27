@@ -77,5 +77,12 @@ object Migrations {
             db.execSQL("ALTER TABLE `activities` ADD COLUMN `statsVersion` INTEGER NOT NULL DEFAULT 0")
         }
     }
-    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+    val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `routes` ADD COLUMN `cot_limitMin` INTEGER")
+            db.execSQL("ALTER TABLE `routes` ADD COLUMN `cot_stopMin` INTEGER")
+            db.execSQL("ALTER TABLE `routes` ADD COLUMN `cot_speedKmh` REAL")
+        }
+    }
+    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
 }
