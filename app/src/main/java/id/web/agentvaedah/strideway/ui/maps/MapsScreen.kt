@@ -1,6 +1,7 @@
 package id.web.agentvaedah.strideway.ui.maps
 
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -59,15 +60,20 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import id.web.agentvaedah.strideway.core.format.Format
 import id.web.agentvaedah.strideway.core.geo.Geo
 import id.web.agentvaedah.strideway.core.model.LatLon
+import id.web.agentvaedah.strideway.core.model.TrackPoint
+import id.web.agentvaedah.strideway.core.route.ElevationProfile
+import id.web.agentvaedah.strideway.core.route.EventCutoff
 import id.web.agentvaedah.strideway.core.route.Maneuver
 import id.web.agentvaedah.strideway.data.db.RouteSource
 import id.web.agentvaedah.strideway.data.prefs.MapBase
 import id.web.agentvaedah.strideway.data.prefs.MapOverlay
 import id.web.agentvaedah.strideway.data.prefs.TerrainOverlay
 import id.web.agentvaedah.strideway.ui.components.LocalMapboxToken
+import id.web.agentvaedah.strideway.ui.components.ExploreElevation
 import id.web.agentvaedah.strideway.ui.components.MapCompass
 import id.web.agentvaedah.strideway.ui.components.MapHost
 import id.web.agentvaedah.strideway.ui.components.MapLayers
+import id.web.agentvaedah.strideway.ui.components.RouteArrows
 import id.web.agentvaedah.strideway.ui.components.MapStyles
 import id.web.agentvaedah.strideway.ui.components.toLatLng
 import id.web.agentvaedah.strideway.ui.theme.Palette
@@ -76,7 +82,7 @@ import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
 
-private enum class Sheet { NONE, LAYERS, ROUTES, AI }
+private enum class Sheet { NONE, LAYERS, ROUTES, AI, ELEVATION }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,8 +99,9 @@ fun MapsScreen(
     val tilt3d by planner.tilt3d.collectAsStateWithLifecycle()
     val search by planner.search.collectAsStateWithLifecycle()
     val focus by planner.focus.collectAsStateWithLifecycle()
-    val from by planner.from.collectAsStateWithLifecycle()
-    val to by planner.to.collectAsStateWithLifecycle()
+    val itinerary by planner.itinerary.collectAsStateWithLifecycle()
+    val event by planner.cutoff.collectAsStateWithLifecycle()
+    val from = itinerary.from
     val plan by planner.plan.collectAsStateWithLifecycle()
     val sort by planner.sort.collectAsStateWithLifecycle()
     val selected by planner.selected.collectAsStateWithLifecycle()
@@ -121,6 +128,8 @@ fun MapsScreen(
     var sheet by rememberSaveable { mutableStateOf(Sheet.NONE) }
     var planOpen by rememberSaveable { mutableStateOf(false) }
     var planExpanded by rememberSaveable { mutableStateOf(true) }
+    var pickPin by rememberSaveable { mutableStateOf<PlanPin?>(null) }
+    BackHandler(enabled = pickPin != null) { pickPin = null }
     var exportId by remember { mutableLongStateOf(-1L) }
     // Route being previewed in 3D: a planned alternative not yet saved, or the shown saved route.
     var preview by remember { mutableStateOf<PreviewRoute?>(null) }
@@ -145,12 +154,15 @@ fun MapsScreen(
         }
     }
 
-    val plannedPreview = (plan as? PlanState.Ready)?.let { planner.sorted(it.options).getOrNull(selected) }?.points?.map { it.latLon }
-    val linePoints: List<LatLon> = when {
-        drawing -> draw.path()
-        plannedPreview != null -> plannedPreview
-        else -> draft?.points?.map { it.latLon } ?: shown?.second.orEmpty()
+    val option = (plan as? PlanState.Ready)?.let { planner.sorted(it.options).getOrNull(selected) }
+    val routeTrack = remember(drawing, draw, planOpen, option, draft, shown) {
+        when {
+            drawing -> draw.track()
+            planOpen -> option?.points.orEmpty().map { TrackPoint(it.lat, it.lon, it.ele) }
+            else -> draft?.points ?: shown?.second.orEmpty()
+        }
     }
+    val linePoints = remember(routeTrack) { routeTrack.map { it.latLon } }
 
     Box(Modifier.fillMaxSize()) {
         MapHost(
@@ -164,7 +176,19 @@ fun MapsScreen(
                     c.target?.let { t -> vm.onCameraIdle(t.latitude, t.longitude, c.zoom) }
                 }
                 m.addOnMapClickListener { ll ->
-                    if (drawingNow) {
+                    val pin = pickPin
+                    if (pin != null) {
+                        val at = LatLon(ll.latitude, ll.longitude)
+                        val stop = Endpoint(java.lang.String.format(java.util.Locale.US, "%.4f, %.4f", at.lat, at.lon), at)
+                        val current = planner.itinerary.value
+                        planner.updateItinerary(when (pin) {
+                            PlanPin.START -> current.copy(from = stop)
+                            PlanPin.VIA -> current.copy(stops = current.stops + stop)
+                            PlanPin.END -> current.copy(to = stop)
+                        })
+                        pickPin = null
+                        true
+                    } else if (drawingNow) {
                         planner.addPoint(LatLon(ll.latitude, ll.longitude))
                         true
                     } else {
@@ -194,6 +218,10 @@ fun MapsScreen(
             // While drawing the camera stays where the rider is working; fitting each tap would jump around.
             if (linePoints.size >= 2 && !drawing) map?.let { MapLayers.fit(it, linePoints, bottomPx = bottomInsetPx) }
         }
+        RouteArrows(style, "route", linePoints, routeColor, animate = preview == null && sheet == Sheet.NONE)
+        LaunchedEffect(style, planOpen, drawing, itinerary, routeColor) {
+            style?.let { MapLayers.setPoints(it, "plan-stops", if (planOpen && !drawing) itinerary.points else emptyList(), routeColor) }
+        }
         val pinColor = Palette.Info
         LaunchedEffect(style, focus) {
             val st = style ?: return@LaunchedEffect
@@ -214,6 +242,14 @@ fun MapsScreen(
             map?.animateCamera(CameraUpdateFactory.tiltTo(if (tilt3d) 60.0 else 0.0), 500)
         }
 
+        pickPin?.let { pin ->
+            Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Palette.Surface).padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Text("Ketuk peta untuk memilih ${pin.label}.", modifier = Modifier.weight(1f))
+                TextButton(onClick = { pickPin = null }) { Text("Batal") }
+            }
+            return@Box
+        }
         Column(Modifier.align(Alignment.TopStart).fillMaxWidth().padding(12.dp)) {
             MapsSearchBar(
                 sport = sport,
@@ -228,6 +264,7 @@ fun MapsScreen(
             )
             Spacer(Modifier.height(8.dp))
             TopControls(
+                onElevation = if (linePoints.size >= 2) ({ sheet = Sheet.ELEVATION }) else null,
                 onRoutes = { sheet = Sheet.ROUTES },
                 onPlan = {
                     if (from == null) vm.lastKnown()?.let { planner.setFrom(Endpoint("Lokasi sekarang", it)) }
@@ -292,7 +329,7 @@ fun MapsScreen(
                     options = readyOptions,
                     selected = selected,
                     onSelect = planner::select,
-                    onClose = { planOpen = false; planner.clearPlan() },
+                    onClose = { planOpen = false; planner.closePlan() },
                     onPreview = readyOptions.getOrNull(selected)?.let { o ->
                         { preview = PreviewRoute("Alternatif ${selected + 1}", o.points.map { it.latLon }, o.maneuvers, null) }
                     },
@@ -307,8 +344,9 @@ fun MapsScreen(
                     },
                 ) {
                     RoutePlannerSheet(
-                        from = from,
-                        to = to,
+                        itinerary = itinerary,
+                        event = event,
+                        onEvent = planner::setCutoff,
                         here = vm.lastKnown(),
                         focus = focus,
                         saved = places,
@@ -316,8 +354,8 @@ fun MapsScreen(
                         sort = sort,
                         selected = selected,
                         sorted = planner::sorted,
-                        onFrom = planner::setFrom,
-                        onTo = planner::setTo,
+                        onEdit = planner::updateItinerary,
+                        onMapPick = { pickPin = it },
                         onPlan = planner::plan,
                         onSort = planner::setSort,
                         // Picking an alternative shrinks the panel to its strip so the route is visible on the map.
@@ -340,8 +378,10 @@ fun MapsScreen(
                         name = r.name,
                         distanceM = r.distanceM,
                         gainM = r.elevationGainM,
+                        event = r.eventCutoff,
+                        onEvent = { vm.setCutoff(r.id, it) },
                         onNavigate = { vm.setNavigation(r.id); onNavigateRoute() },
-                        onPreview = { preview = PreviewRoute(r.name, shown?.second.orEmpty(), shownManeuvers, r.id) },
+                        onPreview = { preview = PreviewRoute(r.name, linePoints, shownManeuvers, r.id) },
                         onClose = vm::hideShown,
                     )
                 }
@@ -371,6 +411,11 @@ fun MapsScreen(
     if (sheet != Sheet.NONE) {
         ModalBottomSheet(onDismissRequest = { sheet = Sheet.NONE }, containerColor = Palette.Surface) {
             when (sheet) {
+                Sheet.ELEVATION -> Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Profil elevasi", style = MaterialTheme.typography.titleLarge)
+                    Text("Ketinggian sepanjang rute", style = MaterialTheme.typography.bodyMedium, color = Palette.TextMuted)
+                    ExploreElevation(remember(routeTrack) { ElevationProfile.fromTrack(routeTrack) })
+                }
                 Sheet.LAYERS -> MapLayersSheet(base, overlays, overlay, { vm.setBase(it) }, planner::toggleOverlay, vm::setOverlay)
                 Sheet.ROUTES -> RoutesSheet(
                     vm,
@@ -399,8 +444,9 @@ fun MapsScreen(
 }
 
 @Composable
-private fun TopControls(onRoutes: () -> Unit, onPlan: () -> Unit, onImport: () -> Unit, onAi: () -> Unit) {
+private fun TopControls(onElevation: (() -> Unit)?, onRoutes: () -> Unit, onPlan: () -> Unit, onImport: () -> Unit, onAi: () -> Unit) {
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        onElevation?.let { MapButton("Profil elevasi", it) }
         MapButton("Rute", onRoutes)
         MapButton("Rencana rute", onPlan)
         MapButton("Impor", onImport)
@@ -602,21 +648,25 @@ private fun DraftPanel(
 }
 
 @Composable
-private fun ShownPanel(name: String, distanceM: Double, gainM: Double, onNavigate: () -> Unit, onPreview: () -> Unit, onClose: () -> Unit) {
-    Row(
+private fun ShownPanel(name: String, distanceM: Double, gainM: Double, event: EventCutoff?, onEvent: (EventCutoff?) -> Unit, onNavigate: () -> Unit, onPreview: () -> Unit, onClose: () -> Unit) {
+    Column(
         Modifier
             .fillMaxWidth()
             .background(Palette.Surface)
             .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(name, style = MaterialTheme.typography.titleSmall)
-            Text("${Format.km(distanceM)} km · naik ${Format.integer(gainM)} m", style = MaterialTheme.typography.bodySmall, color = Palette.TextMuted)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(name, style = MaterialTheme.typography.titleSmall)
+                Text("${Format.km(distanceM)} km · naik ${Format.integer(gainM)} m", style = MaterialTheme.typography.bodySmall, color = Palette.TextMuted)
+            }
+            TextButton(onClick = onClose) { Text("Tutup") }
         }
-        TextButton(onClick = onPreview) { Text("Pratinjau 3D") }
-        TextButton(onClick = onNavigate) { Text("Navigasi") }
-        TextButton(onClick = onClose) { Text("Tutup") }
+        Row(Modifier.horizontalScroll(rememberScrollState())) {
+            EventCutoffControl(distanceM, event, onEvent)
+            TextButton(onClick = onPreview) { Text("Pratinjau 3D") }
+            TextButton(onClick = onNavigate) { Text("Navigasi") }
+        }
     }
 }
 

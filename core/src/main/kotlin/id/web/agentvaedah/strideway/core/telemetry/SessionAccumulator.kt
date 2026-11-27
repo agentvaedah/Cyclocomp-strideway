@@ -9,6 +9,7 @@ import id.web.agentvaedah.strideway.core.model.Sport
 import id.web.agentvaedah.strideway.core.physio.Calories
 import id.web.agentvaedah.strideway.core.physio.PowerEstimator
 import kotlin.math.roundToInt
+import kotlin.math.abs
 
 /**
  * Turns raw GPS, sensor and barometer samples into live ride/run metrics.
@@ -34,9 +35,10 @@ class SessionAccumulator(
     private var speedMps = 0.0
     private var maxSpeedMps = 0.0
     private var gpsAltitude: Double? = null
-    /** Vertical accuracy of the latest GPS fix; null when the platform did not report one. */
-    private var verticalAccuracyM: Double? = null
-    private var baroAltitude: Double? = null
+    private var baroOffset: Double? = null
+    private var pressureAltitude: Double? = null
+    private var gainFromPressure: Boolean? = null
+    private var maxAltitude: Double? = null
     private var baroMs = NEVER
     private var gradePct: Double? = null
 
@@ -79,9 +81,9 @@ class SessionAccumulator(
 
         this.speedMps = speed
         lastInterpolated = interpolated
-        if (altitudeM != null && !interpolated) gpsAltitude = altitudeM
-        // Only a real fix carries an accuracy; an interpolated point reuses the last one.
-        if (!interpolated) this.verticalAccuracyM = verticalAccuracyM
+        if (!interpolated) gpsAltitude = altitudeM?.takeIf {
+            it.isFinite() && (verticalAccuracyM == null || verticalAccuracyM in 0.0..ElevationGain.MAX_VERTICAL_ERROR_M)
+        }
 
         val wasPaused = paused
         autoPause.update(speed * 3.6, timeMs)
@@ -89,10 +91,18 @@ class SessionAccumulator(
         if (!wasPaused && !paused) {
             distanceM += step
             if (speed > maxSpeedMps) maxSpeedMps = speed
-            currentAltitude(timeMs)?.let { ele ->
-                gain.add(distanceM, ele, verticalAccuracyM)
+            val pressure = freshPressureAltitude(timeMs)
+            val fromPressure = pressure != null
+            (pressure ?: gpsAltitude)?.let { ele ->
+                if (gainFromPressure != fromPressure) {
+                    gain.reset()
+                    grade.reset()
+                    gainFromPressure = fromPressure
+                }
+                gain.add(distanceM, ele)
                 gradePct = grade.add(distanceM, ele)
             }
+            currentAltitude(timeMs)?.let { maxAltitude = maxOf(maxAltitude ?: it, it) }
         }
         lastPos = pos
         lastPosMs = timeMs
@@ -102,7 +112,15 @@ class SessionAccumulator(
     fun resetGainReference() = gain.reset()
 
     fun onBarometricAltitude(altitudeM: Double, timeMs: Long) {
-        baroAltitude = altitudeM
+        if (!altitudeM.isFinite()) return
+        val anchor = gpsAltitude?.takeIf { !lastInterpolated && timeMs - lastPosMs in 0..GPS_SILENCE_MS }
+        if (anchor != null) {
+            val offset = anchor - altitudeM
+            val previous = baroOffset
+            if (previous == null || abs(previous - offset) > BARO_REANCHOR_M) baroOffset = offset
+        }
+        // Relative climb needs only pressure differences; only absolute height needs a GPS datum.
+        pressureAltitude = altitudeM
         baroMs = timeMs
     }
 
@@ -159,7 +177,7 @@ class SessionAccumulator(
             maxSpeedKmh = maxSpeedMps * 3.6,
             altitudeM = currentAltitude(timeMs),
             elevationGainM = gain.gainM,
-            maxElevationM = gain.maxEle,
+            maxElevationM = maxAltitude,
             gradePercent = gradePct,
             heartRate = hrNow,
             avgHeartRate = if (hrCount > 0) (hrSum / hrCount).toInt() else null,
@@ -180,7 +198,9 @@ class SessionAccumulator(
      * inflates climb badly. GPS is the fallback, and it is what anchors the barometer to a real datum.
      */
     private fun currentAltitude(timeMs: Long): Double? =
-        if (timeMs - baroMs <= BARO_FRESH_MS) baroAltitude else gpsAltitude
+        freshPressureAltitude(timeMs)?.let { raw -> baroOffset?.plus(raw) } ?: gpsAltitude
+
+    private fun freshPressureAltitude(timeMs: Long) = pressureAltitude?.takeIf { timeMs - baroMs <= BARO_FRESH_MS }
 
     private fun advanceClock(timeMs: Long) {
         val dt = timeMs - clockMs
@@ -199,6 +219,7 @@ class SessionAccumulator(
 
     private companion object {
         const val MAX_PLAUSIBLE_MPS = 30.0
+        const val BARO_REANCHOR_M = 20.0
         const val SENSOR_STALE_MS = 5_000L
 
         /** The barometer reports about once a second; three missed reports means it is gone. */

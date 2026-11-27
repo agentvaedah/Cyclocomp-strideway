@@ -100,6 +100,7 @@ fun HomeScreen(
         is HomeState.Ready -> LazyColumn(Modifier.fillMaxSize()) {
             item { TodayHeader(s.profile, onOpenProfile) }
             item { WeekSummary(s, Modifier.padding(horizontal = 16.dp).staggeredEnter(0)) }
+            item(key = "next-event") { NextEventCard(onOpenMaps = onImport) }
             item {
                 TrainingCard(
                     s.weekLoad,

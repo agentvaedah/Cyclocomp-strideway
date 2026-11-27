@@ -30,6 +30,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import id.web.agentvaedah.strideway.core.route.FlyFrame
+import id.web.agentvaedah.strideway.core.route.RouteFlyover
+import kotlinx.coroutines.delay
 import id.web.agentvaedah.strideway.core.geo.Geo
 import id.web.agentvaedah.strideway.core.heatmap.HeatCell
 import id.web.agentvaedah.strideway.core.model.LatLon
@@ -242,13 +246,34 @@ fun MapHost(
 fun LatLon.toLatLng() = LatLng(lat, lon)
 
 /** Idempotent helpers: create the source/layer on first call, then only swap data. */
+@Composable
+fun RouteArrows(style: Style?, id: String, points: List<LatLon>, color: Color, animate: Boolean = true) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val path = remember(points) { if (points.size >= 2) RouteFlyover(points) else null }
+    LaunchedEffect(style, id, path, color, lifecycle, animate) {
+        val st = style ?: return@LaunchedEffect
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            val start = android.os.SystemClock.elapsedRealtime()
+            val moving = animate && android.animation.ValueAnimator.areAnimatorsEnabled() && (path?.lengthM ?: 0.0) >= 1
+            var first = true
+            while (st.isFullyLoaded) {
+                val seconds = (android.os.SystemClock.elapsedRealtime() - start) / 1000.0
+                MapLayers.setArrows(st, id, path?.arrows(seconds).orEmpty(), color, first)
+                if (!moving) break
+                first = false
+                delay(64)
+            }
+        }
+    }
+}
+
 object MapLayers {
     /**
      * How a line reads on the map. TRACK is ridden ground: a soft glow, a dark edge and a Signal-to-amber
      * gradient that runs from start to finish, so direction shows without arrows. ROUTE is ground still to
      * ride: dashed with chevrons pointing the way. PLAIN is a quiet single line for context.
      */
-    enum class LineStyle { TRACK, ROUTE, PLAIN }
+    enum class LineStyle { TRACK, ROUTE, PREVIEW, PLAIN }
 
     private val TrackEnd = Color(0xFFFFB000)
 
@@ -279,7 +304,7 @@ object MapLayers {
             return
         }
         // lineMetrics is required for a gradient measured along the line.
-        style.addSource(GeoJsonSource(id, collection, GeoJsonOptions().withLineMetrics(lineStyle == LineStyle.TRACK)))
+        style.addSource(GeoJsonSource(id, collection, GeoJsonOptions().withLineMetrics(lineStyle == LineStyle.TRACK || lineStyle == LineStyle.PREVIEW)))
         val layers = ArrayList<Layer>()
         if (lineStyle == LineStyle.TRACK) {
             layers += LineLayer("$id-glow", id).withProperties(
@@ -311,23 +336,43 @@ object MapLayers {
                 PropertyFactory.lineDasharray(arrayOf(1.6f, 1.1f)),
                 PropertyFactory.lineCap(Property.LINE_CAP_BUTT),
             )
-            LineStyle.PLAIN -> line.setProperties(PropertyFactory.lineColor(color.toArgb()))
+            LineStyle.PLAIN, LineStyle.PREVIEW -> line.setProperties(PropertyFactory.lineColor(color.toArgb()))
         }
         layers += line
-        if (lineStyle == LineStyle.ROUTE) {
-            style.addImage("$id-chevron", chevronBitmap(color))
-            layers += SymbolLayer("$id-arrows", id).withProperties(
-                PropertyFactory.symbolPlacement(Property.SYMBOL_PLACEMENT_LINE),
-                PropertyFactory.symbolSpacing(90f),
-                PropertyFactory.iconImage("$id-chevron"),
-                PropertyFactory.iconSize(0.45f),
-                PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
-                PropertyFactory.iconAllowOverlap(true),
-                PropertyFactory.iconIgnorePlacement(true),
-            )
-        }
         layers.forEach { l -> if (below != null && style.getLayer(below) != null) style.addLayerBelow(l, below) else style.addLayer(l) }
         if (lineStyle == LineStyle.TRACK) setEnds(style, id, points, color)
+    }
+
+    fun setArrows(style: Style, lineId: String, frames: List<FlyFrame>, color: Color, refreshImage: Boolean) {
+        val id = "$lineId-arrows"
+        val source = style.getSourceAs<GeoJsonSource>(id)
+        if (frames.isEmpty() && source == null) return
+        val data = FeatureCollection.fromFeatures(frames.map { frame ->
+            Feature.fromGeometry(Point.fromLngLat(frame.position.lon, frame.position.lat)).apply {
+                addNumberProperty("rotation", frame.bearing - 90.0)
+            }
+        })
+        if (refreshImage || source == null) style.addImage("$id-icon", chevronBitmap(color))
+        if (source != null) { source.setGeoJson(data); return }
+        style.addSource(GeoJsonSource(id, data))
+        val layer = SymbolLayer(id, id).withProperties(
+            PropertyFactory.iconImage("$id-icon"), PropertyFactory.iconSize(0.65f),
+            PropertyFactory.iconRotate(Expression.get("rotation")),
+            PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
+            PropertyFactory.iconPitchAlignment(Property.ICON_PITCH_ALIGNMENT_MAP),
+            PropertyFactory.iconAllowOverlap(true), PropertyFactory.iconIgnorePlacement(true),
+        )
+        if (style.getLayer(lineId) != null) style.addLayerAbove(layer, lineId) else style.addLayer(layer)
+    }
+
+    /** Only move a colour stop; never resend the route geometry during playback. */
+    fun previewProgress(style: Style, id: String, fraction: Float, flown: Color, ahead: Color) {
+        val x = fraction.coerceIn(0f, 1f)
+        style.getLayerAs<LineLayer>(id)?.setProperties(PropertyFactory.lineGradient(
+            Expression.interpolate(Expression.linear(), Expression.lineProgress(),
+                Expression.stop((x - .0001f).coerceAtLeast(0f), Expression.color(flown.toArgb())),
+                Expression.stop(x.coerceAtLeast(.0001f), Expression.color(ahead.toArgb()))),
+        ))
     }
 
     private fun trackGradient(color: Color): Expression = Expression.interpolate(
@@ -412,13 +457,13 @@ object MapLayers {
         return bmp
     }
 
-    fun setPoint(style: Style, id: String, point: LatLon?, color: Color, radiusDp: Float = 7f) {
-        val collection = if (point != null) {
-            FeatureCollection.fromFeature(Feature.fromGeometry(Point.fromLngLat(point.lon, point.lat)))
-        } else {
-            FeatureCollection.fromFeatures(emptyList())
-        }
+    fun setPoint(style: Style, id: String, point: LatLon?, color: Color, radiusDp: Float = 7f) =
+        setPoints(style, id, listOfNotNull(point), color, radiusDp)
+
+    fun setPoints(style: Style, id: String, points: List<LatLon>, color: Color, radiusDp: Float = 7f) {
         val source = style.getSourceAs<GeoJsonSource>(id)
+        if (source == null && points.isEmpty()) return
+        val collection = FeatureCollection.fromFeatures(points.map { Feature.fromGeometry(Point.fromLngLat(it.lon, it.lat)) })
         if (source != null) {
             source.setGeoJson(collection)
             return
@@ -582,14 +627,14 @@ object MapLayers {
      * Frames [points] with a short ease, keeping the current tilt and bearing so a 3D view stays 3D.
      * [animate] false jumps instantly, for the first frame before the map is visible.
      */
-    fun fit(map: MapLibreMap, points: List<LatLon>, paddingPx: Int = 96, bottomPx: Int = 0, animate: Boolean = true) {
+    fun fit(map: MapLibreMap, points: List<LatLon>, paddingPx: Int = 96, bottomPx: Int = 0, animate: Boolean = true, northUp: Boolean = false) {
         if (points.isEmpty()) return
         val update = if (points.size == 1 || points.all { it == points.first() }) {
             CameraUpdateFactory.newLatLngZoom(points.first().toLatLng(), 15.0)
         } else {
             val bounds = LatLngBounds.Builder().includes(points.map { it.toLatLng() }).build()
             val cam = map.cameraPosition
-            CameraUpdateFactory.newLatLngBounds(bounds, cam.bearing, cam.tilt, paddingPx, paddingPx, paddingPx, paddingPx + bottomPx)
+            CameraUpdateFactory.newLatLngBounds(bounds, if (northUp) 0.0 else cam.bearing, if (northUp) 0.0 else cam.tilt, paddingPx, paddingPx, paddingPx, paddingPx + bottomPx)
         }
         if (animate) map.animateCamera(update, 600) else map.moveCamera(update)
     }

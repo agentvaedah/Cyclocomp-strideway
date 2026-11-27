@@ -1,6 +1,7 @@
 package id.web.agentvaedah.strideway.core.route
 
 import id.web.agentvaedah.strideway.core.model.LatLon
+import id.web.agentvaedah.strideway.core.model.TrackPoint
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -25,6 +26,12 @@ class BrouterParserTest {
         assertEquals(300, r.timeS)
         assertEquals(3, r.points.size)
         assertEquals(110.0, r.points[1].ele!!, 1e-9)
+    }
+
+    @Test
+    fun missingSummaryFallsBackToLocalGainButExplicitZeroIsKept() {
+        assertEquals(17.0, BrouterParser.parse(json.replace("\"filtered ascend\":\"42\",", ""))!!.ascendM, 0.01)
+        assertEquals(0.0, BrouterParser.parse(json.replace("\"42\"", "\"0\""))!!.ascendM, 0.01)
     }
 
     @Test
@@ -73,6 +80,7 @@ class RouteOptionsTest {
 }
 
 class DrawRouteDraftTest {
+    private fun LatLon.at(height: Double) = TrackPoint(lat, lon, height)
     private val a = LatLon(0.0, 0.0)
     private val b = LatLon(0.0, 0.01)
     private val c = LatLon(0.0, 0.02)
@@ -81,14 +89,14 @@ class DrawRouteDraftTest {
     fun onlyNewSegmentNeedsFetching() {
         var d = DrawRouteDraft().add(a).add(b)
         assertEquals(listOf(a to b), d.missingSegments())
-        d = d.withSegment(a, b, listOf(a, LatLon(0.0, 0.005), b))
+        d = d.withSegment(a, b, listOf(a.at(3.0), LatLon(0.0, 0.005).at(7.0), b.at(2.0)))
         d = d.add(c)
         assertEquals(listOf(b to c), d.missingSegments())
     }
 
     @Test
     fun undoRemovesLastWaypointAndSegment() {
-        val d = DrawRouteDraft().add(a).add(b).withSegment(a, b, listOf(a, b)).add(c).undo()
+        val d = DrawRouteDraft().add(a).add(b).withSegment(a, b, listOf(a.at(1.0), b.at(2.0))).add(c).undo()
         assertEquals(listOf(a, b), d.waypoints)
         assertTrue(d.missingSegments().isEmpty())
         assertEquals(listOf(a, b), d.path())
@@ -96,8 +104,10 @@ class DrawRouteDraftTest {
 
     @Test
     fun pathJoinsSegmentsWithoutDuplicatingJoints() {
-        val d = DrawRouteDraft().add(a).add(b).add(c).withSegment(a, b, listOf(a, b)).withSegment(b, c, listOf(b, c))
+        val d = DrawRouteDraft().add(a).add(b).add(c)
+            .withSegment(a, b, listOf(a.at(0.0), b.at(30.0))).withSegment(b, c, listOf(b.at(30.0), c.at(50.0)))
         assertEquals(listOf(a, b, c), d.path())
+        assertEquals(listOf(0.0, 30.0, 50.0), d.track().map { it.ele })
     }
 
     @Test

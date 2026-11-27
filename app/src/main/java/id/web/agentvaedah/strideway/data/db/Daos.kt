@@ -172,6 +172,12 @@ interface GearDao {
 
 @Dao
 interface RouteDao {
+    @Query("SELECT id, createdMs, name, distanceM, elevationGainM, cot_limitMin, cot_stopMin, cot_speedKmh FROM routes ORDER BY createdMs DESC, id DESC")
+    fun eventChoices(): Flow<List<EventRoute>>
+
+    @Query("SELECT * FROM route_points WHERE routeId = :routeId ORDER BY seq")
+    fun observePoints(routeId: Long): Flow<List<RoutePointEntity>>
+
     @Query("SELECT * FROM routes ORDER BY createdMs DESC")
     fun observeAll(): Flow<List<RouteEntity>>
 
@@ -180,6 +186,9 @@ interface RouteDao {
 
     @Query("SELECT * FROM routes WHERE id = :id")
     fun observe(id: Long): Flow<RouteEntity?>
+
+    @Query("UPDATE routes SET cot_limitMin = :limit, cot_stopMin = :stops, cot_speedKmh = :speed WHERE id = :id")
+    suspend fun setCutoff(id: Long, limit: Int?, stops: Int?, speed: Double?)
 
     @Query("SELECT * FROM route_points WHERE routeId = :routeId ORDER BY seq")
     suspend fun points(routeId: Long): List<RoutePointEntity>
@@ -277,4 +286,3 @@ interface TrainingDao {
     @Query("DELETE FROM training_plans")
     suspend fun deleteAllPlans()
 }
-

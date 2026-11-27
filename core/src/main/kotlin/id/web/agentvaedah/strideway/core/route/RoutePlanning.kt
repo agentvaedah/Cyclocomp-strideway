@@ -2,6 +2,8 @@ package id.web.agentvaedah.strideway.core.route
 
 import id.web.agentvaedah.strideway.core.geo.Geo
 import id.web.agentvaedah.strideway.core.model.LatLon
+import id.web.agentvaedah.strideway.core.model.TrackPoint
+import id.web.agentvaedah.strideway.core.track.TrackStats
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -41,12 +43,14 @@ object BrouterParser {
             RoutePoint(a[1].jsonPrimitive.doubleOrNull!!, a[0].jsonPrimitive.doubleOrNull!!, a.getOrNull(2)?.jsonPrimitive?.doubleOrNull)
         }
         fun prop(name: String) = props?.get(name)?.jsonPrimitive?.contentOrNull?.toDoubleOrNull()
-        val length = prop("track-length") ?: 0.0
+        val length = prop("track-length")?.takeIf { it.isFinite() && it > 0 }
+            ?: TrackStats.distanceM(points.map { TrackPoint(it.lat, it.lon, it.ele) })
         val shares = surfaceShares(props?.get("messages") as? JsonArray, length)
         RouteOption(
             points = points,
             lengthM = length,
-            ascendM = prop("filtered ascend") ?: 0.0,
+            ascendM = prop("filtered ascend")?.takeIf { it.isFinite() && it >= 0 }
+                ?: TrackStats.elevationGainM(points.map { TrackPoint(it.lat, it.lon, it.ele) }),
             timeS = prop("total-time")?.toInt() ?: 0,
             surfaceShare = shares,
             pavedShare = shares.filterKeys { it in paved }.values.sum(),
@@ -124,7 +128,7 @@ object RouteOptions {
  */
 data class DrawRouteDraft(
     val waypoints: List<LatLon> = emptyList(),
-    private val segments: Map<Pair<LatLon, LatLon>, List<LatLon>> = emptyMap(),
+    private val segments: Map<Pair<LatLon, LatLon>, List<TrackPoint>> = emptyMap(),
 ) {
     fun add(p: LatLon) = copy(waypoints = waypoints + p)
 
@@ -137,18 +141,24 @@ data class DrawRouteDraft(
 
     fun clear() = DrawRouteDraft()
 
-    fun withSegment(a: LatLon, b: LatLon, path: List<LatLon>) = copy(segments = segments + ((a to b) to path))
+    fun withSegment(a: LatLon, b: LatLon, path: List<TrackPoint>) = copy(segments = segments + ((a to b) to path))
 
     fun missingSegments(): List<Pair<LatLon, LatLon>> = waypoints.zipWithNext().filter { it !in segments }
 
     /** Joined path; a segment not fetched yet is drawn as a straight line. */
-    fun path(): List<LatLon> {
-        if (waypoints.size < 2) return waypoints
-        val out = ArrayList<LatLon>()
+    fun track(): List<TrackPoint> {
+        fun bare(p: LatLon) = TrackPoint(p.lat, p.lon)
+        if (waypoints.size < 2) return waypoints.map(::bare)
+        val out = ArrayList<TrackPoint>()
         for (pair in waypoints.zipWithNext()) {
-            val seg = segments[pair] ?: listOf(pair.first, pair.second)
-            if (out.isNotEmpty() && out.last() == seg.first()) out.addAll(seg.drop(1)) else out.addAll(seg)
+            val seg = segments[pair].orEmpty().ifEmpty { listOf(bare(pair.first), bare(pair.second)) }
+            if (out.isNotEmpty() && out.last().latLon == seg.first().latLon) {
+                if (out.last().ele == null) out[out.lastIndex] = seg.first()
+                out.addAll(seg.drop(1))
+            } else out.addAll(seg)
         }
         return out
     }
+
+    fun path(): List<LatLon> = track().map { it.latLon }
 }

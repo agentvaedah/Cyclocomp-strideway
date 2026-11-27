@@ -282,6 +282,13 @@ private fun DetailBody(
         )
 
         ChartBlock("Elevasi (m)", s.charts.elevation, Palette.TextMuted, fill = true, cursor = progress)
+        Text(
+            (if (a.source == id.web.agentvaedah.strideway.data.db.ActivitySource.IMPORT) "Sumber: ketinggian titik dalam file impor."
+             else "Sumber rekaman: barometer ponsel bila tersedia, atau GPS.") +
+                " Total naik menjumlahkan tanjakan setelah perataan 100 m dan ambang 3 m; bukan selisih titik tertinggi dan terendah.",
+            style = MaterialTheme.typography.bodySmall, color = Palette.TextMuted,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
         ChartBlock("Detak jantung (bpm)", s.charts.heartRate, Palette.Error, cursor = progress)
         ChartBlock("Kecepatan (km/j)", s.charts.speedKmh, Palette.Info, cursor = progress)
 

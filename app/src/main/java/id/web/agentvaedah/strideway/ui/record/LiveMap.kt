@@ -49,6 +49,7 @@ import id.web.agentvaedah.strideway.service.RecordingState
 import id.web.agentvaedah.strideway.ui.components.MapCompass
 import id.web.agentvaedah.strideway.ui.components.MapHost
 import id.web.agentvaedah.strideway.ui.components.MapLayers
+import id.web.agentvaedah.strideway.ui.components.RouteArrows
 import id.web.agentvaedah.strideway.ui.components.toLatLng
 import id.web.agentvaedah.strideway.ui.theme.Brand
 import id.web.agentvaedah.strideway.ui.theme.MetricText
@@ -124,6 +125,7 @@ fun LiveMap(
             val st = style ?: return@LaunchedEffect
             MapLayers.setLine(st, "nav-route", navRoute, routeColor, 5f, lineStyle = MapLayers.LineStyle.ROUTE)
         }
+        RouteArrows(style, "nav-route", navRoute, routeColor)
         LaunchedEffect(style, state.path.size, state.position, state.headingDeg, trackColor) {
             val st = style ?: return@LaunchedEffect
             MapLayers.setLine(st, "live-track", state.path, trackColor, 6f, lineStyle = MapLayers.LineStyle.TRACK)

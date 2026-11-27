@@ -13,7 +13,7 @@ package id.web.agentvaedah.strideway.core.geo
 class ElevationGain(
     private val threshold: Double = 3.0,
     private val windowM: Double = 100.0,
-    private val maxAccuracyM: Double = 25.0,
+    private val maxAccuracyM: Double = MAX_VERTICAL_ERROR_M,
 ) {
     /** Altitude samples still inside the distance window, oldest first. */
     private val window = ArrayDeque<Pair<Double, Double>>()
@@ -61,5 +61,9 @@ class ElevationGain(
     fun reset() {
         window.clear()
         reference = null
+    }
+
+    companion object {
+        const val MAX_VERTICAL_ERROR_M = 25.0
     }
 }

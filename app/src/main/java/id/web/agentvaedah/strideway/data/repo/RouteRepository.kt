@@ -4,18 +4,27 @@ import id.web.agentvaedah.strideway.core.geo.Polyline
 import id.web.agentvaedah.strideway.core.model.TrackPoint
 import id.web.agentvaedah.strideway.core.track.TrackStats
 import id.web.agentvaedah.strideway.core.route.Maneuver
+import id.web.agentvaedah.strideway.core.route.EventCutoff
+import id.web.agentvaedah.strideway.core.route.ElevationProfile
 import id.web.agentvaedah.strideway.core.route.ManeuverType
 import id.web.agentvaedah.strideway.data.db.ManeuverEntity
 import id.web.agentvaedah.strideway.data.db.RouteDao
 import id.web.agentvaedah.strideway.data.db.RouteEntity
 import id.web.agentvaedah.strideway.data.db.RoutePointEntity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class RouteRepository @Inject constructor(private val dao: RouteDao) {
     fun routes(): Flow<List<RouteEntity>> = dao.observeAll()
+
+    fun eventChoices() = dao.eventChoices()
+
+    fun elevationProfile(id: Long) = dao.observePoints(id).map { points ->
+        ElevationProfile.fromTrack(points.map { it.toTrackPoint() })
+    }
 
     fun route(id: Long): Flow<RouteEntity?> = dao.observe(id)
 
@@ -28,15 +37,20 @@ class RouteRepository @Inject constructor(private val dao: RouteDao) {
         runCatching { ManeuverType.valueOf(m.type) }.getOrNull()?.let { Maneuver(m.pointIndex, it, m.exitNumber, m.street) }
     }
 
-    suspend fun save(name: String, source: String, points: List<TrackPoint>, prompt: String?, maneuvers: List<Maneuver> = emptyList()): Long {
+    suspend fun save(
+        name: String, source: String, points: List<TrackPoint>, prompt: String?,
+        maneuvers: List<Maneuver> = emptyList(), plannedGainM: Double? = null,
+        plannedLengthM: Double? = null, cutoff: EventCutoff? = null,
+    ): Long {
         val route = RouteEntity(
             name = name.trim().ifBlank { "Rute tanpa nama" },
             source = source,
             createdMs = System.currentTimeMillis(),
-            distanceM = TrackStats.distanceM(points),
-            elevationGainM = TrackStats.elevationGainM(points),
+            distanceM = plannedLengthM ?: TrackStats.distanceM(points),
+            elevationGainM = plannedGainM ?: TrackStats.elevationGainM(points),
             polyline = Polyline.encode(TrackStats.downsample(points.map { it.latLon }, 400)),
             prompt = prompt,
+            eventCutoff = cutoff,
         )
         val id = dao.insertWithPoints(
             route,
@@ -49,6 +63,8 @@ class RouteRepository @Inject constructor(private val dao: RouteDao) {
     }
 
     suspend fun delete(id: Long) = dao.delete(id)
+
+    suspend fun setCutoff(id: Long, cutoff: EventCutoff?) = dao.setCutoff(id, cutoff?.limitMin, cutoff?.stopMin, cutoff?.speedKmh)
 }
 
 fun RoutePointEntity.toTrackPoint() = TrackPoint(lat, lon, ele)

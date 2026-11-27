@@ -4,6 +4,13 @@ import java.util.Locale
 import kotlin.math.roundToLong
 
 object Format {
+    fun elapsedWords(ms: Long): String {
+        if (ms in 1..999) return "<1 dtk"
+        val seconds = ms.coerceAtLeast(0) / 1000
+        return listOf(seconds / 3600 to "jam", seconds / 60 % 60 to "mnt", seconds % 60 to "dtk")
+            .filter { it.first > 0 }.joinToString(" ") { (n, unit) -> "$n $unit" }.ifEmpty { "0 dtk" }
+    }
+
     fun duration(ms: Long): String {
         val total = (ms.coerceAtLeast(0) / 1000)
         val h = total / 3600

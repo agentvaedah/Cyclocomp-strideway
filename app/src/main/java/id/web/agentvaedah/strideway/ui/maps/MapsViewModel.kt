@@ -9,6 +9,7 @@ import id.web.agentvaedah.strideway.core.model.Sport
 import id.web.agentvaedah.strideway.core.model.Track
 import id.web.agentvaedah.strideway.core.model.TrackPoint
 import id.web.agentvaedah.strideway.core.route.LoopPlanner
+import id.web.agentvaedah.strideway.core.route.EventCutoff
 import id.web.agentvaedah.strideway.core.route.Maneuver
 import id.web.agentvaedah.strideway.core.route.RouteIntentException
 import id.web.agentvaedah.strideway.core.route.RouteIntents
@@ -41,6 +42,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -105,8 +107,12 @@ class MapsViewModel @Inject constructor(
     private val _draft = MutableStateFlow<DraftRoute?>(null)
     val draft: StateFlow<DraftRoute?> = _draft.asStateFlow()
 
-    private val _shownRoute = MutableStateFlow<Pair<RouteEntity, List<LatLon>>?>(null)
-    val shownRoute: StateFlow<Pair<RouteEntity, List<LatLon>>?> = _shownRoute.asStateFlow()
+    private val _shownRoute = MutableStateFlow<Pair<RouteEntity, List<TrackPoint>>?>(null)
+    val shownRoute = combine(_shownRoute, savedRoutes) { shown, saved ->
+        shown?.let { (opened, track) ->
+            saved?.firstOrNull { it.id == opened.id && it.createdMs == opened.createdMs }?.let { it to track }
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val _ai = MutableStateFlow<AiRouteState>(AiRouteState.Idle)
     val ai: StateFlow<AiRouteState> = _ai.asStateFlow()
@@ -213,12 +219,18 @@ class MapsViewModel @Inject constructor(
         viewModelScope.launch {
             val r = routes.get(routeId) ?: return@launch
             _shownManeuvers.value = routes.maneuvers(routeId)
-            _shownRoute.value = r to routes.points(routeId).map { LatLon(it.lat, it.lon) }
+            _shownRoute.value = r to routes.points(routeId).map { it.toTrackPoint() }
         }
     }
 
     fun hideShown() {
         _shownRoute.value = null
+    }
+
+    fun setCutoff(id: Long, cutoff: EventCutoff?) {
+        viewModelScope.launch {
+            routes.setCutoff(id, cutoff)
+        }
     }
 
     fun setNavigation(routeId: Long?) = viewModelScope.launch { settings.setActiveRouteId(routeId) }

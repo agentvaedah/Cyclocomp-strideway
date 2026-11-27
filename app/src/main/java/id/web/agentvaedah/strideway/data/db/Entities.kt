@@ -1,6 +1,8 @@
 package id.web.agentvaedah.strideway.data.db
 
 import androidx.room.ColumnInfo
+import androidx.room.Embedded
+import id.web.agentvaedah.strideway.core.route.EventCutoff
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -86,6 +88,18 @@ object RouteSource {
     const val ACTIVITY = "activity"
 }
 
+data class EventRoute(
+    val id: Long,
+    val createdMs: Long,
+    val name: String,
+    val distanceM: Double,
+    val elevationGainM: Double,
+    @Embedded(prefix = "cot_") val eventCutoff: EventCutoff?,
+) {
+    // Restoring a different backup can reuse a numeric route id.
+    fun selectionKey() = "$id:$createdMs"
+}
+
 @Serializable
 @Entity(tableName = "routes")
 data class RouteEntity(
@@ -97,6 +111,7 @@ data class RouteEntity(
     val elevationGainM: Double,
     val polyline: String,
     val prompt: String? = null,
+    @Embedded(prefix = "cot_") val eventCutoff: EventCutoff? = null,
 )
 
 @Serializable
@@ -264,4 +279,3 @@ data class PlannedSessionEntity(
     /** Activity that completed this session, if any. */
     val doneActivityId: Long?,
 )
-

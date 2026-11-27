@@ -95,6 +95,16 @@ class RouteFollowerTest {
     }
 
     @Test
+    fun savedProfileCanLocateRejoinBeyondTheDetour() {
+        val saved = RouteFollower(route, holdMs = 0L)
+        val detour = alongNorth(100.0, 150.0)
+        assertTrue(saved.update(detour, 0L).offRoute)
+        val rejoin = saved.update(alongNorth(490.0), 1_000L)
+        assertEquals(false, rejoin.offRoute)
+        assertEquals(490.0, rejoin.progressM, 1.0)
+    }
+
+    @Test
     fun emptyRouteIsHarmless() {
         val s = RouteFollower(emptyList()).update(origin, 0)
         assertEquals(false, s.offRoute)
