@@ -34,6 +34,8 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -64,6 +66,7 @@ fun TrendChart(
     startLabel: String? = null,
     middleLabel: String? = null,
     endLabel: String? = null,
+    detail: (@Composable (Int) -> Unit)? = null,
 ) {
     val grid = Palette.Outline.copy(alpha = 0.55f)
     val muted = Palette.TextMuted
@@ -78,7 +81,7 @@ fun TrendChart(
     val span = (rawMax - rawMin).coerceAtLeast(1f)
     val step = niceStep(span / 2f)
     val min = (rawMin / step).toInt() * step - if (rawMin < 0 && rawMin % step != 0f) step else 0f
-    val max = ((rawMax / step).roundToInt() * step).coerceAtLeast(min + step)
+    val max = (kotlin.math.ceil(rawMax / step) * step).coerceAtLeast(min + step)
     val ticks = listOf(min, (min + max) / 2f, max).distinct()
 
     Column(modifier) {
@@ -101,7 +104,14 @@ fun TrendChart(
                 Modifier
                     .weight(1f)
                     .height(height)
-                    .semantics { contentDescription = description }
+                    .semantics {
+                        contentDescription = description
+                        val current = scrubIndex ?: maxCount - 1
+                        customActions = buildList {
+                            if (current > 0) add(CustomAccessibilityAction("Titik sebelumnya") { scrubIndex = current - 1; true })
+                            if (current < maxCount - 1) add(CustomAccessibilityAction("Titik berikutnya") { scrubIndex = current + 1; true })
+                        }
+                    }
                     .pointerInput(maxCount) {
                         detectTapGestures { offset ->
                             val idx = ((offset.x / size.width) * (maxCount - 1)).roundToInt().coerceIn(0, maxCount - 1)
@@ -208,6 +218,7 @@ fun TrendChart(
                 }
             }
         }
+        detail?.invoke(scrubIndex ?: maxCount - 1)
     }
 }
 

@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,6 +42,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -343,25 +347,44 @@ private fun FormCard(points: List<TrainingLoad.FitnessPoint>, estimated: Boolean
                 Spacer(Modifier.height(4.dp))
                 Text(status.advice, style = MaterialTheme.typography.bodyMedium, color = Palette.TextMuted)
                 Spacer(Modifier.height(14.dp))
-                if (hasActivities) {
+                if (hasActivities && points.isNotEmpty()) {
+                    var days by rememberSaveable { mutableIntStateOf(42) }
+                    val window = remember(points, days) { points.takeLast(days) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(7, 14, 42).forEach { n ->
+                            FilterChip(selected = days == n, onClick = { days = n }, label = { Text("$n hari") })
+                        }
+                    }
                     TrendChart(
                         series = listOf(
-                            TrendSeries("Fitness", points.map { it.fitness.toFloat() }, Palette.Info, area = true),
-                            TrendSeries("Fatigue", points.map { it.fatigue.toFloat() }, Palette.Accent),
-                            TrendSeries("Form", points.map { it.form.toFloat() }, Palette.Text, dashed = true),
+                            TrendSeries("Fitness", window.map { it.fitness.toFloat() }, Palette.Info),
+                            TrendSeries("Fatigue", window.map { it.fatigue.toFloat() }, Palette.Accent),
+                            TrendSeries("Form", window.map { it.form.toFloat() }, Palette.Text, dashed = true, area = true),
                         ),
-                        description = "Fitness, fatigue, dan form 42 hari terakhir. Angka di legenda adalah nilai hari ini.",
+                        description = "Fitness, fatigue, dan form $days hari terakhir. Pilih titik untuk melihat detail harian.",
                         height = 150.dp,
-                        startLabel = dayLabel(points.firstOrNull()?.epochDay, "d MMM"),
-                        middleLabel = dayLabel(points.getOrNull(points.size / 2)?.epochDay, "d MMM"),
+                        startLabel = dayLabel(window.first().epochDay, "d MMM"),
+                        middleLabel = dayLabel(window[window.size / 2].epochDay, "d MMM"),
                         endLabel = "hari ini",
-                    )
-                    Text(
-                        "42 hari terakhir. Fitness naik perlahan, fatigue bergerak cepat, form adalah selisihnya.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Palette.TextMuted,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
+                    ) { i ->
+                        val point = window[i]
+                        Column(
+                            Modifier.fillMaxWidth().padding(top = 10.dp)
+                                .background(Palette.SurfaceHigh, MaterialTheme.shapes.medium).padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(dayLabel(point.epochDay, "EEEE, d MMMM").orEmpty(), style = MetricText.Label, color = Palette.TextMuted)
+                            Text("Beban harian · ${Format.oneDecimal(point.dailyLoad)} TRIMP", style = MaterialTheme.typography.titleMedium)
+                            val previous = points.getOrNull(points.size - window.size + i - 1)
+                            previous?.let {
+                                val d = point.form - it.form
+                                Text("Perubahan Form: ${if (d > 0) "+" else ""}${Format.oneDecimal(d)} dari kemarin",
+                                    style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                    Text("Geser grafik untuk memilih hari. Form = Fitness − Fatigue.",
+                        style = MaterialTheme.typography.bodySmall, color = Palette.TextMuted, modifier = Modifier.padding(top = 6.dp))
                 } else {
                     val waveColor = Palette.Info
                     val mutedLine = Palette.Outline.copy(alpha = 0.6f)
