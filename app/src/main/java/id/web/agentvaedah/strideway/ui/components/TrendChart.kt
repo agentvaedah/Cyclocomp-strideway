@@ -25,11 +25,13 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -74,18 +76,27 @@ fun TrendChart(
     val min = (rawMin / step).toInt() * step - if (rawMin < 0 && rawMin % step != 0f) step else 0f
     val max = (kotlin.math.ceil(rawMax / step) * step).coerceAtLeast(min + step)
     val ticks = (0..((max - min) / step).roundToInt()).map { min + it * step }
+    val labels = ticks.asReversed().map { it.roundToInt().toString() }
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val labelSizes = labels.map { measurer.measure(it, MetricText.Label, maxLines = 1).size }
+    val axisWidth = with(density) { labelSizes.maxOf { it.width }.toDp() + 6.dp }.coerceAtLeast(34.dp)
+    val labelHeight = with(density) { labelSizes.maxOf { it.height }.toDp() }
+    val chartHeight = maxOf(height, labelHeight * labels.size + 2.dp * (labels.size - 1))
 
     Column(modifier) {
         Row(Modifier.fillMaxWidth()) {
             Column(
-                Modifier.width(34.dp).height(height).padding(end = 6.dp),
+                Modifier.width(axisWidth).height(chartHeight).padding(end = 6.dp),
                 verticalArrangement = Arrangement.SpaceBetween,
             ) {
-                ticks.reversed().forEach { t ->
+                labels.forEach { label ->
                     Text(
-                        t.roundToInt().toString(),
+                        label,
                         style = MetricText.Label,
                         color = muted,
+                        maxLines = 1,
+                        softWrap = false,
                         textAlign = TextAlign.End,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -94,7 +105,7 @@ fun TrendChart(
             Canvas(
                 Modifier
                     .weight(1f)
-                    .height(height)
+                    .height(chartHeight)
                     .semantics {
                         contentDescription = description
                         val current = scrubIndex ?: maxCount - 1
@@ -122,7 +133,7 @@ fun TrendChart(
                         }
                     },
             ) {
-                val padV = 8.dp.toPx()
+                val padV = labelHeight.toPx() / 2f
                 val usableH = (size.height - padV * 2).coerceAtLeast(1f)
                 fun y(v: Float) = padV + usableH - (v - min) / (max - min) * usableH
 
@@ -181,9 +192,10 @@ fun TrendChart(
             }
         }
         if (startLabel != null || middleLabel != null || endLabel != null) {
-            Row(Modifier.fillMaxWidth().padding(start = 34.dp, top = 6.dp)) {
+            Row(Modifier.fillMaxWidth().padding(start = axisWidth, top = 6.dp)) {
                 Text(startLabel.orEmpty(), style = MetricText.Label, color = muted, modifier = Modifier.weight(1f))
-                Text(middleLabel.orEmpty(), style = MetricText.Label, color = muted, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+                if (middleLabel != null) Text(middleLabel, style = MetricText.Label, color = muted,
+                    textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
                 Text(endLabel.orEmpty(), style = MetricText.Label, color = muted, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
             }
         }

@@ -20,10 +20,10 @@ private val demo = TrainingLoad.series((0..83).map { i ->
 }, last - 41, last)
 
 @Composable
-private fun Sample(theme: ThemeMode, populated: Boolean = true) {
+private fun Sample(theme: ThemeMode, populated: Boolean = true, points: List<TrainingLoad.FitnessPoint> = demo) {
     StridewayTheme(theme) {
         Box(Modifier.background(Palette.Bg).padding(vertical = 16.dp)) {
-            FormCard(demo, estimated = false, hasActivities = populated)
+            FormCard(points, estimated = false, hasActivities = populated)
         }
     }
 }
@@ -38,7 +38,8 @@ fun FormDarkPreview() = Sample(ThemeMode.DARK)
 
 @Preview(widthDp = 320, fontScale = 1.5f)
 @Composable
-fun FormLargeTypePreview() = Sample(ThemeMode.LIGHT)
+fun FormLargeTypePreview() = Sample(ThemeMode.LIGHT, points = demo.dropLast(1) +
+    TrainingLoad.FitnessPoint(last, fitness = 6.0, fatigue = 74.0))
 
 @Preview(widthDp = 320)
 @Composable
