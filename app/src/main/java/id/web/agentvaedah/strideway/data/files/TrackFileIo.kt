@@ -43,6 +43,20 @@ class TrackFileIo @Inject constructor(@ApplicationContext private val context: C
         }
     }
 
+    suspend fun readRaw(uri: Uri): Result<Pair<String, ByteArray>> = withContext(Dispatchers.IO) {
+        try {
+            val name = displayName(uri) ?: "data"
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                ?: return@withContext Result.failure(IOException("File tidak bisa dibuka"))
+            if (bytes.size > MAX_BYTES) return@withContext Result.failure(IOException("File lebih dari 50 MB"))
+            Result.success(name to bytes)
+        } catch (e: IOException) {
+            Result.failure(e)
+        } catch (e: SecurityException) {
+            Result.failure(IOException("Akses ke file ditolak"))
+        }
+    }
+
     suspend fun readText(uri: Uri): Result<String> = withContext(Dispatchers.IO) {
         try {
             val text = context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }

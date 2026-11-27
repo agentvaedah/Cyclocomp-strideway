@@ -111,9 +111,32 @@ fun YouScreen(
             onPickPhoto = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
             onRemovePhoto = vm::removePhoto,
         )
-        PrimaryTabRow(selectedTabIndex = tab, containerColor = Palette.Bg) {
-            Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Progress") })
-            Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Aktivitas") })
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .background(Palette.Surface, MaterialTheme.shapes.medium)
+                .border(1.dp, Palette.Outline.copy(alpha = 0.6f), MaterialTheme.shapes.medium)
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            listOf("Progress", "Aktivitas").forEachIndexed { idx, label ->
+                val active = tab == idx
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .background(if (active) Palette.Accent else Palette.Surface, MaterialTheme.shapes.small)
+                        .clickable(role = Role.Tab) { tab = idx }
+                        .padding(vertical = 9.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (active) Palette.OnAccent else Palette.TextMuted,
+                    )
+                }
+            }
         }
         AnimatedContent(tab, transitionSpec = { fadeIn(tween(Motion.MEDIUM)) togetherWith fadeOut(tween(Motion.SHORT)) }, label = "you-tab") { t ->
             when (t) {

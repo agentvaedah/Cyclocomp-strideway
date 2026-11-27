@@ -32,7 +32,7 @@ object TrainingLoad {
 
     data class DailyLoad(val epochDay: Long, val load: Double)
 
-    data class FitnessPoint(val epochDay: Long, val fitness: Double, val fatigue: Double) {
+    data class FitnessPoint(val epochDay: Long, val fitness: Double, val fatigue: Double, val dailyLoad: Double = 0.0) {
         val form: Double get() = fitness - fatigue
     }
 
@@ -48,7 +48,7 @@ object TrainingLoad {
             val load = byDay[day] ?: 0.0
             fitness += (load - fitness) / FITNESS_DAYS
             fatigue += (load - fatigue) / FATIGUE_DAYS
-            if (day >= fromDay) out += FitnessPoint(day, fitness, fatigue)
+            if (day >= fromDay) out += FitnessPoint(day, fitness, fatigue, load)
         }
         return out
     }

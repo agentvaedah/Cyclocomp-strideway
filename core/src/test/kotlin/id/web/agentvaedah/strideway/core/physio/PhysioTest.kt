@@ -91,6 +91,7 @@ class TrainingLoadTest {
         val a = TrainingLoad.series(listOf(TrainingLoad.DailyLoad(0, 50.0), TrainingLoad.DailyLoad(0, 50.0)), 0, 0)
         val b = TrainingLoad.series(listOf(TrainingLoad.DailyLoad(0, 100.0)), 0, 0)
         assertEquals(b.single().fitness, a.single().fitness, 1e-9)
+        assertEquals(100.0, a.single().dailyLoad)
     }
 
     @Test
@@ -99,6 +100,7 @@ class TrainingLoadTest {
         assertEquals(1, s.size)
         val expected = 100.0 / 7 * (6.0 / 7).pow(10)
         assertEquals(expected, s.single().fatigue, 1e-9)
+        assertEquals(0.0, s.single().dailyLoad)
     }
 }
 

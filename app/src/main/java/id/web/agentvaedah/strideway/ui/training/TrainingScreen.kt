@@ -2,9 +2,11 @@ package id.web.agentvaedah.strideway.ui.training
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -16,12 +18,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -51,8 +57,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -98,26 +108,68 @@ fun TrainingScreen(onOpenCoach: () -> Unit, onRide: () -> Unit, vm: TrainingView
     var detail by remember { mutableStateOf<Pair<Workout, Long?>?>(null) }
 
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text("Latihan", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.weight(1f))
-            IconButton(onClick = onOpenCoach) { Icon(Icons.Outlined.Forum, contentDescription = "Buka AI Coach") }
+            Row(
+                Modifier
+                    .background(Palette.Accent.copy(alpha = 0.14f), CircleShape)
+                    .border(1.dp, Palette.Accent.copy(alpha = 0.35f), CircleShape)
+                    .clickable(role = Role.Button, onClick = onOpenCoach)
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = Palette.Accent, modifier = Modifier.size(16.dp))
+                Text("AI Coach", style = MaterialTheme.typography.labelLarge, color = Palette.Accent)
+            }
         }
         selected?.let { w ->
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).background(Palette.Surface, MaterialTheme.shapes.medium).padding(12.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                    .background(Palette.Surface, MaterialTheme.shapes.large)
+                    .border(1.dp, Palette.Accent.copy(alpha = 0.45f), MaterialTheme.shapes.large)
+                    .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Siap dikayuh", style = MetricText.Label, color = Palette.TextMuted)
+                    Text("SIAP DIKAYUH", style = MetricText.Label, color = Palette.Accent)
                     Text(w.name, style = MaterialTheme.typography.titleMedium)
                 }
                 TextButton(onClick = vm::cancelRide) { Text("Batal") }
-                Button(onClick = onRide) { Text("Ke Rekam") }
+                Button(onClick = onRide, shape = MaterialTheme.shapes.medium) { Text("Ke Rekam") }
             }
         }
-        PrimaryTabRow(selectedTabIndex = tab, containerColor = Palette.Bg) {
-            Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Rencana") })
-            Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Sesi") })
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .background(Palette.Surface, MaterialTheme.shapes.medium)
+                .border(1.dp, Palette.Outline.copy(alpha = 0.6f), MaterialTheme.shapes.medium)
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            listOf("Rencana", "Sesi").forEachIndexed { idx, label ->
+                val active = tab == idx
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .background(if (active) Palette.Accent else Palette.Surface, MaterialTheme.shapes.small)
+                        .clickable(role = Role.Tab) { tab = idx }
+                        .padding(vertical = 9.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (active) Palette.OnAccent else Palette.TextMuted,
+                    )
+                }
+            }
         }
         when (tab) {
             0 -> PlanTab(vm, onOpen = { w, id -> detail = w to id })
@@ -263,37 +315,92 @@ private fun LibraryTab(vm: TrainingViewModel, onOpen: (Workout) -> Unit) {
 @Composable
 private fun SessionRowSimple(w: Workout, onClick: () -> Unit) {
     Column(
-        Modifier.fillMaxWidth().background(Palette.Surface, MaterialTheme.shapes.medium).clickable(role = Role.Button, onClick = onClick).padding(12.dp),
+        Modifier
+            .fillMaxWidth()
+            .background(Palette.Surface, MaterialTheme.shapes.large)
+            .border(1.dp, Palette.Outline.copy(alpha = 0.6f), MaterialTheme.shapes.large)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(w.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-            Text(Format.duration(w.durationS * 1000L), style = MetricText.Label, color = Palette.TextMuted)
+            Text(w.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            Text(
+                Format.duration(w.durationS * 1000L),
+                style = MetricText.Label,
+                color = Palette.TextMuted,
+                modifier = Modifier
+                    .background(Palette.SurfaceHigh, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+            )
         }
+        Spacer(Modifier.height(2.dp))
         Text(w.focus, style = MaterialTheme.typography.bodySmall, color = Palette.TextMuted)
-        Spacer(Modifier.height(8.dp))
-        IntensityStrip(w, Modifier.fillMaxWidth().height(28.dp))
+        Spacer(Modifier.height(10.dp))
+        IntensityStrip(w, Modifier.fillMaxWidth().height(34.dp))
     }
 }
 
-/** Blocks as wide as each step and as tall as its intensity, so the shape of a session reads at a glance. */
+/**
+ * Zone-colored rounded intensity profile with smooth vertical gradients and soft baseline,
+ * so interval structure reads fluidly at a glance.
+ */
 @Composable
 internal fun IntensityStrip(w: Workout, modifier: Modifier) {
+    val info = Palette.Info
+    val success = Palette.Success
+    val warning = Palette.Warning
     val accent = Palette.Accent
-    val muted = Palette.TextMuted.copy(alpha = 0.4f)
+    val error = Palette.Error
+    val muted = Palette.TextMuted.copy(alpha = 0.45f)
+    val baseline = Palette.Outline.copy(alpha = 0.55f)
     Canvas(modifier.semantics { contentDescription = "Profil intensitas ${w.name}" }) {
         val total = w.durationS.toFloat().coerceAtLeast(1f)
+        val gap = if (w.steps.size > 14) 1.5.dp.toPx() else 2.5.dp.toPx()
         var x = 0f
         w.steps.forEach { s ->
-            val width = size.width * s.durationS / total
+            val rawW = size.width * s.durationS / total
+            val wPx = (rawW - gap).coerceAtLeast(2.dp.toPx())
             val pct = when (val t = s.target) {
                 is Target.PowerPct -> ((t.low + t.high) / 2).toFloat()
-                is Target.HrZone -> 0.5f + t.zone * 0.1f
+                is Target.HrZone -> 0.5f + t.zone * 0.12f
                 Target.Free -> 0.9f
-            }.coerceIn(0.2f, 1.6f)
-            val h = size.height * (pct / 1.6f)
-            drawRect(if (s.work) accent else muted, Offset(x, size.height - h), Size((width - 1f).coerceAtLeast(1f), h))
-            x += width
+            }.coerceIn(0.24f, 1.55f)
+            val h = (size.height * (pct / 1.55f)).coerceAtLeast(5.dp.toPx())
+            val topY = size.height - h
+            val color = when {
+                !s.work -> muted
+                pct >= 1.15f -> error
+                pct >= 0.95f -> accent
+                pct >= 0.80f -> warning
+                pct >= 0.65f -> success
+                else -> info
+            }
+            val r = minOf(5.dp.toPx(), wPx / 2f)
+            val path = Path().apply {
+                addRoundRect(
+                    RoundRect(
+                        left = x,
+                        top = topY,
+                        right = x + wPx,
+                        bottom = size.height,
+                        topLeftCornerRadius = CornerRadius(r, r),
+                        topRightCornerRadius = CornerRadius(r, r),
+                        bottomLeftCornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx()),
+                        bottomRightCornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx()),
+                    ),
+                )
+            }
+            drawPath(
+                path,
+                Brush.verticalGradient(
+                    colors = listOf(color, color.copy(alpha = if (s.work) 0.52f else 0.25f)),
+                    startY = topY,
+                    endY = size.height,
+                ),
+            )
+            x += rawW
         }
+        drawLine(baseline, Offset(0f, size.height - 0.5f), Offset(size.width, size.height - 0.5f), strokeWidth = 1.dp.toPx())
     }
 }
 
