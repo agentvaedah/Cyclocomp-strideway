@@ -42,6 +42,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -107,7 +108,11 @@ class MapsViewModel @Inject constructor(
     val draft: StateFlow<DraftRoute?> = _draft.asStateFlow()
 
     private val _shownRoute = MutableStateFlow<Pair<RouteEntity, List<TrackPoint>>?>(null)
-    val shownRoute = _shownRoute.asStateFlow()
+    val shownRoute = combine(_shownRoute, savedRoutes) { shown, saved ->
+        shown?.let { (opened, track) ->
+            saved?.firstOrNull { it.id == opened.id && it.createdMs == opened.createdMs }?.let { it to track }
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val _ai = MutableStateFlow<AiRouteState>(AiRouteState.Idle)
     val ai: StateFlow<AiRouteState> = _ai.asStateFlow()
@@ -225,9 +230,6 @@ class MapsViewModel @Inject constructor(
     fun setCutoff(id: Long, cutoff: EventCutoff?) {
         viewModelScope.launch {
             routes.setCutoff(id, cutoff)
-            _shownRoute.value?.takeIf { it.first.id == id }?.let { (r, track) ->
-                _shownRoute.value = r.copy(eventCutoff = cutoff) to track
-            }
         }
     }
 
