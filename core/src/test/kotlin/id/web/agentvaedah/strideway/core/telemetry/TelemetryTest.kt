@@ -100,14 +100,27 @@ class SessionAccumulatorTest {
     fun weakGpsAltitudeDoesNotHideBarometricClimbing() {
         val baro = SessionAccumulator(athlete, Sport.RIDE, 0)
         val gpsOnly = SessionAccumulator(athlete, Sport.RIDE, 0)
+        baro.onLocation(0L, origin, 120.0, 10.0, false, 2.0)
         for (i in 0..4) {
-            val t = i * 20_000L
+            val t = i * 20_000L + 1
             val pos = Geo.destination(origin, 0.0, i * 200.0)
             baro.onBarometricAltitude(20.0 + i * 10, t)
             for (acc in listOf(baro, gpsOnly)) acc.onLocation(t, pos, 120.0 + i * 10, 10.0, false, 40.0)
         }
-        assertEquals(37.0, baro.tick(80_000).elevationGainM, 0.01)
-        assertEquals(0.0, gpsOnly.tick(80_000).elevationGainM, 0.01)
+        assertEquals(37.0, baro.tick(80_001).elevationGainM, 0.01)
+        assertEquals(0.0, gpsOnly.tick(80_001).elevationGainM, 0.01)
+    }
+
+    @Test fun `poor GPS does not shift the barometer and recalibration is not climbing`() {
+        val acc = SessionAccumulator(athlete, Sport.RIDE, 0)
+        for (i in 0..6) {
+            val t = i * 10_000L
+            val altitude = if (i == 0) 120.0 else 200.0
+            acc.onLocation(t, Geo.destination(origin, 0.0, i * 120.0), altitude, 12.0, false, if (i in 1..3) 50.0 else 2.0)
+            acc.onBarometricAltitude(20.0, t)
+            assertEquals(if (i in 0..3) 120.0 else 200.0, acc.tick(t).altitudeM!!, 0.01)
+            assertEquals(0.0, acc.tick(t).elevationGainM, 0.01)
+        }
     }
 
     @Test
