@@ -36,6 +36,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -61,6 +62,7 @@ data class TrendSeries(
 fun TrendChart(
     series: List<TrendSeries>,
     description: String,
+    describePoint: (Int) -> String,
     modifier: Modifier = Modifier,
     height: Dp = 156.dp,
     startLabel: String? = null,
@@ -107,6 +109,7 @@ fun TrendChart(
                     .semantics {
                         contentDescription = description
                         val current = scrubIndex ?: maxCount - 1
+                        stateDescription = describePoint(current)
                         customActions = buildList {
                             if (current > 0) add(CustomAccessibilityAction("Titik sebelumnya") { scrubIndex = current - 1; true })
                             if (current < maxCount - 1) add(CustomAccessibilityAction("Titik berikutnya") { scrubIndex = current + 1; true })

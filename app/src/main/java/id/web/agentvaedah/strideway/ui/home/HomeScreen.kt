@@ -362,6 +362,11 @@ private fun FormCard(points: List<TrainingLoad.FitnessPoint>, estimated: Boolean
                             TrendSeries("Form", window.map { it.form.toFloat() }, Palette.Text, dashed = true, area = true),
                         ),
                         description = "Fitness, fatigue, dan form $days hari terakhir. Pilih titik untuk melihat detail harian.",
+                        describePoint = { i ->
+                            val p = window[i]
+                            "${dayLabel(p.epochDay, "EEEE, d MMMM")}. Beban ${Format.oneDecimal(p.dailyLoad)} TRIMP. " +
+                                "Fitness ${p.fitness.roundToInt()}, fatigue ${p.fatigue.roundToInt()}, form ${p.form.roundToInt()}."
+                        },
                         height = 150.dp,
                         startLabel = dayLabel(window.first().epochDay, "d MMM"),
                         middleLabel = dayLabel(window[window.size / 2].epochDay, "d MMM"),
