@@ -23,7 +23,9 @@ fun EventCutoffControl(distanceM: Double, event: EventCutoff?, onSave: (EventCut
     }
     if (!open) return
     var duration by rememberSaveable { mutableStateOf(event?.let { durationInput(it.limitMin) }.orEmpty()) }
-    var speed by rememberSaveable { mutableStateOf((event?.speedKmh ?: suggestedSpeed)?.let { Format.oneDecimal(it) }.orEmpty()) }
+    var speed by rememberSaveable {
+        mutableStateOf(event?.speedKmh?.toString() ?: suggestedSpeed?.let(Format::oneDecimal).orEmpty())
+    }
     var stops by rememberSaveable { mutableStateOf((event?.stopMin ?: 0).toString()) }
     val draft = EventCutoff.parse(duration, stops, speed)
     AlertDialog(
